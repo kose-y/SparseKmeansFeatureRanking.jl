@@ -3,6 +3,11 @@ uuid = "a6138be3-5d3e-4f3e-9009-7e37efc59f36"
 authors = ["Seyoon Ko <kos@ucla.edu> and contributors"]
 version = "0.1.0"
 
+[deps]
+DelimitedFiles = "8bb1440f-4735-579b-a4ab-409b98df4dab"
+Distances = "b4f34e82-e78d-54a5-968a-f98e89d6e8f7"
+StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
+
 [compat]
 julia = "1"
 

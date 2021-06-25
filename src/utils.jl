@@ -117,19 +117,40 @@ function kmeans(X::Matrix{T}, class::Vector{Int},
     return (class, center)
 end
   
-""" 
-    get_classes(X, center)
-"""
-  #function get_classes(X::Matrix{T}, center::Array{T}) where T <: Union{Float32, Float64}
-function get_classes(X, center)
-    points = size(X,2)
-    class = zeros(Int,points)
-    dist = pairwise(Euclidean(), center, X) # fetch distances
-    for point = 1:points
-        class[point] = argmin(dist[:, point]) # closest center
+function get_distances_to_center!(X::ImputedMatrix{T}) where T
+    n, p = size(X)
+    k = size(X.centers, 2)
+    fill!(X.distances, zero(T))
+    for kk in 1:k
+        for j in 1:p
+            @inbounds @fastmath @simd for i in 1:n
+                X.distances[i, kk] = X.distances[i, kk] + (X.data[i, j] - X.centers[j, kk])^2
+            end
+        end
     end
-    return class
+    @inbounds for idx in eachindex(X.distances)
+        X.distances[idx] = sqrt(X.distances[idx])
+    end
+    X.distances
 end
+
+""" 
+    get_clusters!(X, center)
+"""
+function get_clusters!(X::ImputedMatrix{T}) where T
+    n, p = size(X)
+    k = size(X.centers, 2)
+    switched = false
+    for i = 1:n
+        kk = argmin(@view(X.distances[i, :])) # class of closest center
+        if kk != X.clusters[i]
+            switched = true
+            X.clusters[i] = kk
+        end
+    end
+    return (X.clusters, switched)
+end
+
 """
 
 - centers: p x k

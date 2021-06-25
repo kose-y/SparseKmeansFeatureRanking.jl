@@ -12,11 +12,12 @@ Structure for SKFR.
 - `criterion`: cluster criterion (length-p T)
 """
 struct ImputedMatrix{T} <: AbstractMatrix{T}
-    data::AbstractMatrix{T}
+    data::Matrix{T}
     clusters::Vector{Int}
     centers::Matrix{T}
     members::Vector{Int}
     criterion::Vector{T}
+    distances::Matrix{T}
 end
 
 @inline function Base.size(x::ImputedMatrix)
@@ -52,10 +53,11 @@ function ImputedMatrix{T}(data::AbstractMatrix{T}, k::Int) where {T <: Real}
     members = zeros(Int, k)
     centers = get_centers!(centers, members, data, clusters)
     criterion = zeros(T, p)
-    ImputedMatrix{T}(data, clusters, centers, members, criterion)
+    distances = zeros(T, n, k)
+    ImputedMatrix{T}(data, clusters, centers, members, criterion, distances)
 end
 
-@inline function Base.getindex(A::ImputedMatrix{T}, i::Int, j::Int) where {T}
+@inline function Base.getindex(A::ImputedMatrix{T}, i::Int, j::Int)::T where {T}
     r = Base.getindex(A.data, i, j)
     if isnan(r)
         r = A.centers[cluster[i], j]

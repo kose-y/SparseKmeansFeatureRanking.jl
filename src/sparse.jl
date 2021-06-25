@@ -26,7 +26,6 @@ function sparsekmeans1(X::ImputedMatrix{T}, sparsity::Int;
     fill!(X.members, zero(Int))
     fill!(X.criterion, zero(T))
 
-    distance = zeros(T, n, k)
     wholevec=1:p
     if normalize
         for j = 1:p # normalize each feature
@@ -45,54 +44,30 @@ function sparsekmeans1(X::ImputedMatrix{T}, sparsity::Int;
             end
         end
         # Gather the criterion to the master node
-        #J = partialsortperm(criterion, 1:sparsity, rev = true)
         # find the (p-s) least informative features and setting them to 0
         J = partialsortperm(X.criterion,1:(p-sparsity),rev=false)
         fill!(@view(X.centers[J, :]), zero(T))
         #center[:, J] = zeros(length(J),classes)
         selectedvec = setdiff(wholevec,J)
-        # TODO: distribute this.
-        fill!(distance, zero(T))
-        @inbounds for kk in 1:k
-            for j in 1:p
-                for i in 1:n
-                    distance[i, kk] += (X[i, j] - X.centers[j, kk]) ^ 2
-                end
-            end
-        end
-        distance .= sqrt.(distance)
-        #distance = pairwise(Euclidean(), center, X, dims = 2)
-        switched = false # update classes
-        for i in 1:n
-            j = argmin(distance[i, :]) # class of closest center
-            if j != X.clusters[i]
-                switched = true
-                X.clusters[i] = j
-            end
-        end
+        get_distances_to_center!(X)
+        _, switched = get_clusters!(X)
     end
     # now calculating the WSS and TSS; used in the permutation test and sparse kpod
     WSSval = zeros(T, k)
-    for kk in 1:k
-        tempIndex = findall(X.clusters .== kk)
-        # do it memory-efficiently or drop it.
-        tempX = @view(X[tempIndex, :]) .- transpose(X.centers[:, kk])
-        WSSval[kk] = sum(tempX .^ 2)
+    for j in 1:p
+        @inbounds for i in 1:n
+            kk = X.clusters[i]
+            WSSval[kk] += (X[i, j] - X.centers[j, kk]) ^ 2
+        end
     end
 
-    #Xtran=transpose(X)
-    # Once again, do it memory-efficiently or drop it.
     TSSval = zero(T)
     @inbounds for j in 1:p
-        m = mean(X[:, j])
+        m = mean(@view(X[:, j]))
         for i in 1:n
             TSSval += (X[i, j] - m) ^ 2
         end
     end
-    # for j=1:p
-    #     X[:,j] = X[:,j] .- mean(X[:,j])
-    # end
-    # TSSval = sum(X .^ 2)
     return (X.clusters, X.centers, selectedvec, WSSval, TSSval)
 end
 
@@ -122,15 +97,8 @@ function sparsekmeans2(X::ImputedMatrix{T}, sparsity::Int;
     normalize::Bool=true) where T <: Real
   
     (n, p) = size(X)
-    # centers are p by k 
     k = classes(X)
-    #center = zeros(T, features, classes)
-    #members = zeros(Int, classes)
-    #criterion = zeros(T, features)
-    distance = zeros(T, n, k)
-    #distance = zeros(T, classes, cases)
     selectedvec = zeros(T, k, sparsity)
-    #selectedvec=zeros(T,classes,sparsity)
     wholevec=1:p
     if normalize
         for j = 1:p # normalize each feature
@@ -148,41 +116,25 @@ function sparsekmeans2(X::ImputedMatrix{T}, sparsity::Int;
                 selectedvec[kk,:] .= setdiff(wholevec,J)
             end
         end
-        switched = false # update classes
-        #(j, k) = (p - sparsity + 1, p)
-        #distance = pairwise(Euclidean(), center, X, dims = 2)
-        fill!(distance, zero(T))
-        @inbounds for kk in 1:k
-            for j in 1:p
-                for i in 1:n
-                    distance[i, kk] += (X[i, j] - X.centers[j, kk]) ^ 2
-                end
-            end
-        end
-        distance .= sqrt.(distance)
-
-        for i = 1:n
-            kk = argmin(distance[i, :]) # class of closest center
-            if kk != X.clusters[i]
-                switched = true
-                X.clusters[i] = kk
-            end
-        end
+        get_distances_to_center!(X)
+        _, switched = get_clusters!(X)
     end
 
     WSSval = zeros(T, k)
-    for kk in 1:k
-        tempIndex = findall(X.clusters .== kk)
-        # do it memory-efficiently or drop it.
-        tempX = @view(X[tempIndex, :]) .- transpose(X.centers[:, kk])
-        WSSval[kk] = sum(tempX .^ 2)
+    for j in 1:p
+        @inbounds for i in 1:n
+            kk = X.clusters[i]
+            WSSval[kk] += (X[i, j] - X.centers[j, kk]) ^ 2
+        end
     end
 
     TSSval = zero(T)
+    tmp = zero(T)
     @inbounds for j in 1:p
-        m = mean(X[:, j])
+        m = mean(@view(X[:, j]))
         for i in 1:n
-            TSSval += (X[i, j] - m) ^ 2
+            tmp = (X[i, j] - m) ^ 2
+            TSSval += tmp
         end
     end
     return (X.clusters, X.centers,selectedvec,WSSval,TSSval)

@@ -1,9 +1,10 @@
 module SKFR
 
+using Base: stackframe_function_color
 using StatsBase, Distances, DelimitedFiles
-
+include("structs.jl")
+include("utils.jl")
 include("sparse.jl")
-include("k_generalized_source.jl")
 include("sparsekpod.jl")
 include("sparsepermute.jl")
 

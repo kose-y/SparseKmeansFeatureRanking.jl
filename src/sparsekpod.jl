@@ -32,6 +32,8 @@ function initialImpute(X)
     return(X)
 end
 
+
+
 """
     sparsekpod(X, k, sparsity, kmpp_flag::Bool=true, maxiter::Int=20)
 
@@ -54,23 +56,24 @@ TRY TO AVOID ANY ADDITIONAL n x p MATRICES.
 - fit = 1 - sum(WSS) / obj
 - fit of each iteration
 """
-function sparsekpod(X, k, sparsity, kmpp_flag::Bool = true,
-    maxiter::Int = 20)
+function sparsekpod(X::AbstractMatrix{T}, k::Int, sparsity::Int, kmpp_flag::Bool = true,
+    maxiter::Int = 20) where T <: Real
    
-    n = size(X,1)
-    p = size(X,2)
-    cluster_vals = zeros(maxiter,n)
+    n, p = size(X)
+    cluster_vals = zeros(n, maxiter)
     obj_vals = []
     fit = []
     # do not store missing/nonmissing indices. It's also n x p. 
-    missingindices = findMissing(X)
-    nonmissingindices=setdiff(CartesianIndices(X)[1:end],missingindices)
+    #missingindices = findMissing(X)
+    #nonmissingindices=setdiff(CartesianIndices(X)[1:end],missingindices)
     # do not create these. Retrieve imputed values on the fly. 
-    X_copy = initialImpute(X)
-    X_copy = convert(Array{Float64,2}, X_copy)
+    X_imp = ImputedMatrix{T}(X, k)
+    #X_copy = initialImpute(X)
+    #X_copy = convert(Array{Float64,2}, X_copy)
     # do not require copy of a matrix for these subfunctions.
     # This requires between-sample distances when the features are distributed. 
-    init_classes = initclass(copy(X_copy'), k)
+
+    #init_classes = initclass(copy(X_copy'), k)
     # decide on sparsekmeans1 or sparsekmeans2. maybe use an additional argument? 
     # This requires center-to-sample distances. 
     (clusts, centerout,selectedvec,WSS,obj)= sparsekmeans1(copy(X_copy'), init_classes, k, sparsity)

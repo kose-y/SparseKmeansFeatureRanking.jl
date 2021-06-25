@@ -130,39 +130,108 @@ function get_classes(X, center)
     end
     return class
 end
-  
 """
-    initclass(X, k)
 
-kmeans plusplus initialization for classes, modified from Clustering.jl
-""" 
-function initclass(X, k::Int) 
-    points = size(X, 2)
-    iseeds = zeros(Int, k)
-    class = zeros(Int, points)
-    p = rand(1:points)
-    iseeds[1] = p
-    if k > 1
-        mincosts = Distances.colwise(Euclidean(), X, view(X,:,p))
-        mincosts[p] = 0
-        #
-        # Pick remaining seeds with a chance proportional to mincosts.
-        tmpcosts = zeros(points)
-        for j = 2:k
-            p = wsample(1:points, mincosts)
-            iseeds[j] = p
-            c = view(X,:,p)
-            Distances.colwise!(tmpcosts, Euclidean(), X, view(X,:,p))
-            updatemin!(mincosts, tmpcosts)
-            mincosts[p] = 0
+- centers: p x k
+- X: n x p
+- class: length-n
+"""
+function get_centers!(centers::Matrix{T}, members::Vector{<:Integer}, X::AbstractMatrix{T}, 
+    class::Vector{<:Integer}) where T <: Real
+    n, p = size(X)
+    k = size(centers, 2)
+    @assert length(class) == n
+    @assert size(centers, 1) == p
+    fill!(centers, zero(T))
+    fill!(members, zero(eltype(members)))
+    @inbounds for j in 1:p 
+        for i in 1:n
+            c = class[i]
+            centers[j, c] = centers[j, c] + X[i, j] 
         end
     end
-    dist = pairwise(Euclidean(), X[:, iseeds], X) # fetch distances
-    for point = 1:points
-        class[point] = argmin(dist[:, point]) # closest center
+    @inbounds for i in 1:n
+        c = class[i]
+        members[c] = members[c] + 1
+    end
+    @inbounds for kk = 1:k
+        if members[kk] > 0
+            centers[:, kk] .= @view(centers[:, kk]) ./ members[kk]
+        end
+    end
+    centers
+end
+
+"""
+Distances from row s. 
+"""
+function dists_from_single_row!(dists::Vector{T}, X::AbstractMatrix{T}, s::Int) where T
+    n, p = size(X)
+    @assert length(dists) == n
+    fill!(dists, zero(T))
+    @inbounds for j in 1:p
+        for i in 1:n
+            dists[i] += (X[i, j] - X[s, j]) ^ 2
+        end
+    end
+    dists .= sqrt.(dists)
+    dists[s] = zero(T)
+    dists
+end
+
+"""
+
+- dists: n x k. 
+"""
+function dists_from_rows!(dists::Matrix{T}, X::AbstractMatrix{T}, iseeds::Vector{Int}) where T
+    n, p = size(X)
+    k = size(dists, 2)
+    @assert size(dists, 1) == n
+    fill!(dists, zero(T))
+    X_subsample = X[iseeds, :]
+    @inbounds for j in 1:p
+        for i in 1:n
+            for s in 1:length(iseeds)
+                dists[i, s] += (X[i, j] - X_subsample[s, j]) ^ 2
+            end
+        end
+    end
+    dists .= sqrt.(dists)
+    dists
+end
+
+"""
+    initclass!(class, X, k)
+
+kmeans plusplus initialization for classes, modified from Clustering.jl. 
+""" 
+function initclass!(class::Vector{Int}, X::AbstractMatrix{T}, k::Int) where T 
+    n = size(X, 1)
+    iseeds = zeros(Int, k)
+    s = rand(1:n)
+    iseeds[1] = s
+
+    if k > 1
+        mincosts = Vector{T}(undef, n)
+        dists_from_single_row!(mincosts, X, s)
+
+        # pick remaining seeds with a chance proportional to mincosts.
+        tmpcosts = zeros(n)
+        for j = 2:k
+            s = wsample(1:n, mincosts)
+            iseeds[j] = s
+            dists_from_single_row!(tmpcosts, X, s)
+            updatemin!(mincosts, tmpcosts)
+            mincosts[s] = 0
+        end
+    end
+    dists = Matrix{T}(undef, n, k)
+    dists_from_rows!(dists, X, iseeds)
+    for i in 1:n
+        class[i] = argmin(dists[i, :])
     end
     return class
-  end
+end
   
 """
     initcenters(X, k)

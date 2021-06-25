@@ -33,7 +33,7 @@ function ImputedMatrix{T}(data::AbstractMatrix{T}, k::Int) where {T <: Real}
     centers = Matrix{T}(undef, p, k)
     # set up column imputation
     fill!(clusters, 1)
-    @inbounds for j in 1:p
+    @inbounds for j in 1:k
         s = zero(T)
         cnt = 0
         for i in 1:n
@@ -44,7 +44,7 @@ function ImputedMatrix{T}(data::AbstractMatrix{T}, k::Int) where {T <: Real}
             cnt += 1
         end
         avg = s / cnt
-        fill!(centers[:, p], avg)
+        fill!(centers[:, j], avg)
     end
 
     # Initialization step

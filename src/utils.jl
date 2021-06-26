@@ -117,6 +117,23 @@ function kmeans(X::Matrix{T}, class::Vector{Int},
     return (class, center)
 end
   
+function compute_μ_σ!(A::ImputedMatrix{T}) where T
+    n, p = size(A)
+    @inbounds for j in 1:p
+        m = zero(T)
+        m2 = zero(T)
+        for i in 1:n
+            v = getindex_raw(A, i, j)
+            m += v
+            m2 += v ^ 2
+        end
+        m /= n
+        m2 /= n
+        A.μ[j] = m
+        A.σ[j] = sqrt((m2 - m ^ 2) * n / (n - 1))
+    end
+end
+
 function get_distances_to_center!(X::ImputedMatrix{T}) where T
     n, p = size(X)
     k = size(X.centers, 2)
@@ -124,7 +141,7 @@ function get_distances_to_center!(X::ImputedMatrix{T}) where T
     for kk in 1:k
         for j in 1:p
             @inbounds @fastmath @simd for i in 1:n
-                X.distances[i, kk] = X.distances[i, kk] + (X.data[i, j] - X.centers[j, kk])^2
+                X.distances[i, kk] = X.distances[i, kk] + (X[i, j] - X.centers[j, kk])^2
             end
         end
     end

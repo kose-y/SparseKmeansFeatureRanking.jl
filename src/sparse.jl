@@ -19,7 +19,7 @@ enter with an initial guess of the classifications.
 * total sum of squares (TSS)
 """
 function sparsekmeans1(X::ImputedMatrix{T}, sparsity::Int; 
-    normalize::Bool=true) where T <: Real
+    normalize::Bool=!X.renormalize) where T <: Real
 
     n, p = size(X)
     k = classes(X)
@@ -32,6 +32,8 @@ function sparsekmeans1(X::ImputedMatrix{T}, sparsity::Int;
             # Do it on the fly with SnpArray. 
             X[:, j] .= zscore(@view(X[:, j]))
         end
+    else
+        compute_μ_σ!(X)
     end
     switched = true
     selectedvec = zeros(sparsity)
@@ -51,6 +53,7 @@ function sparsekmeans1(X::ImputedMatrix{T}, sparsity::Int;
         selectedvec = setdiff(wholevec,J)
         get_distances_to_center!(X)
         _, switched = get_clusters!(X)
+        compute_μ_σ!(X)
     end
     # now calculating the WSS and TSS; used in the permutation test and sparse kpod
     WSSval = zeros(T, k)
@@ -94,7 +97,7 @@ the classifications.
 * total sum of squares (TSS)
 """
 function sparsekmeans2(X::ImputedMatrix{T}, sparsity::Int;
-    normalize::Bool=true) where T <: Real
+    normalize::Bool=!X.renormalize) where T <: Real
   
     (n, p) = size(X)
     k = classes(X)
@@ -104,6 +107,8 @@ function sparsekmeans2(X::ImputedMatrix{T}, sparsity::Int;
         for j = 1:p # normalize each feature
             X[:, j] .= zscore(@view(X[:, j]))
         end
+    else
+        compute_μ_σ!(X)
     end
     switched = true
     while switched # iterate until class assignments stabilize
@@ -118,6 +123,7 @@ function sparsekmeans2(X::ImputedMatrix{T}, sparsity::Int;
         end
         get_distances_to_center!(X)
         _, switched = get_clusters!(X)
+        compute_μ_σ!(X)
     end
 
     WSSval = zeros(T, k)

@@ -18,6 +18,9 @@ struct ImputedMatrix{T} <: AbstractMatrix{T}
     members::Vector{Int}
     criterion::Vector{T}
     distances::Matrix{T}
+    μ::Vector{T}
+    σ::Vector{T}
+    renormalize::Bool
 end
 
 @inline function Base.size(x::ImputedMatrix)
@@ -28,7 +31,7 @@ end
     return size(x.centers, 2)
 end
 
-function ImputedMatrix{T}(data::AbstractMatrix{T}, k::Int) where {T <: Real}
+function ImputedMatrix{T}(data::AbstractMatrix{T}, k::Int; renormalize=true) where {T <: Real}
     n, p = size(data)
     clusters = Vector{Int}(undef, n)
     centers = Matrix{T}(undef, p, k)
@@ -54,17 +57,30 @@ function ImputedMatrix{T}(data::AbstractMatrix{T}, k::Int) where {T <: Real}
     centers = get_centers!(centers, members, data, clusters)
     criterion = zeros(T, p)
     distances = zeros(T, n, k)
-    ImputedMatrix{T}(data, clusters, centers, members, criterion, distances)
+
+    μ = zeros(T, p)
+    σ = zeros(T, p)
+    
+    ImputedMatrix{T}(data, clusters, centers, members, criterion, distances, μ, σ, renormalize)
 end
 
 @inline function Base.getindex(A::ImputedMatrix{T}, i::Int, j::Int)::T where {T}
-    r = Base.getindex(A.data, i, j)
-    if isnan(r)
-        r = A.centers[cluster[i], j]
+    r = getindex_raw(A, i, j)
+    if A.renormalize
+        r -= A.μ[j]
+        r /= A.σ[j]
     end
-    return r
+    r
 end
 
 @inline function Base.setindex!(A::ImputedMatrix{T}, v::T, i::Int, j::Int) where T
     A.data[i, j] = v
 end
+
+@inline function getindex_raw(A::ImputedMatrix{T}, i::Int, j::Int)::T where T
+    r = Base.getindex(A.data, i, j)
+    if isnan(r)
+        r = A.centers[cluster[i], j]
+    end
+    return r
+end    

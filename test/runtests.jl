@@ -30,6 +30,8 @@ include("ref/sparsekpod.jl")
         # classout is the output cluster labels, center is the output cluster centers,
         # selectedvec contains the top s most informative features.
         #WSSval= within cluster sum of squares; TSSval=total sum of squares
+
+
         @time (classout1, center1, selectedvec1, WSSval1, TSSval1) = ref_sparsekmeans1(X1, class1, classes,m);
         @time (classout2, center2, selectedvec2, WSSval2, TSSval2) = ref_sparsekmeans2(X2, class2, classes,m);
 
@@ -37,6 +39,17 @@ include("ref/sparsekpod.jl")
         IM = SKFR.ImputedMatrix{Float64}(collect(transpose(X)), 3)
         X1 = deepcopy(IM)
         X2 = deepcopy(IM)
+
+        # test correctness of on-the-fly normalization
+        SKFR.compute_μ_σ!(IM)
+
+        IM2 = SKFR.ImputedMatrix{Float64}(collect(transpose(X)), 3; renormalize=false)
+        for j = 1:features # normalize each feature
+            # Do it on the fly with SnpArray. 
+            IM2[:, j] .= zscore(@view(IM2[:, j]))
+        end
+        @test all(IM .≈ IM2)
+
 
         # test k-means++ class initialization
         @test all(IM.clusters .== class)

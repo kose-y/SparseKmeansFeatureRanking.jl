@@ -174,30 +174,29 @@ end
 - X: n x p
 - class: length-n
 """
-function get_centers!(centers::Matrix{T}, members::Vector{<:Integer}, X::AbstractMatrix{T}, 
-    class::Vector{<:Integer}) where T <: Real
+function get_centers!(X::ImputedMatrix{T}) where T <: Real
     n, p = size(X)
-    k = size(centers, 2)
-    @assert length(class) == n
-    @assert size(centers, 1) == p
-    fill!(centers, zero(T))
-    fill!(members, zero(eltype(members)))
+    k = size(X.centers, 2)
+    @assert length(X.clusters) == n
+    @assert size(X.centers, 1) == p
+    fill!(X.centers_tmp, zero(T))
+    fill!(X.members, zero(eltype(X.members)))
     @inbounds for j in 1:p 
         for i in 1:n
-            c = class[i]
-            centers[j, c] = centers[j, c] + X[i, j] 
+            c = X.clusters[i]
+            X.centers_tmp[j, c] = X.centers_tmp[j, c] + X[i, j]
         end
     end
     @inbounds for i in 1:n
-        c = class[i]
-        members[c] = members[c] + 1
+        c = X.clusters[i]
+        X.members[c] = X.members[c] + 1
     end
     @inbounds for kk = 1:k
-        if members[kk] > 0
-            centers[:, kk] .= @view(centers[:, kk]) ./ members[kk]
+        if X.members[kk] > 0
+            X.centers[:, kk] .= @view(X.centers_tmp[:, kk]) ./ X.members[kk]
         end
     end
-    centers
+    X.centers
 end
 
 """

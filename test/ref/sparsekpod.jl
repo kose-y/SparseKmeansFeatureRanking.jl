@@ -5,13 +5,13 @@ using StatsBase, Distances,DelimitedFiles
 function assign_clustppSparse(X, k, init_centers,sparsity,
  kmpp_flag= true, max_iter= 20)
   init_classes= get_classes(copy(X'),copy(init_centers'))
-  (clusts, centerout,selectedvec,WSS,obj) = sparsekmeans1(copy(X'), init_classes, k, sparsity)
+  (clusts, centerout,selectedvec,WSS,obj) = ref_sparsekmeans1(copy(X'), init_classes, k, sparsity)
   fit = 1 - (sum(WSS)/obj)
   centers = copy(centerout')
   if kmpp_flag == true
     for iter = 1:max_iter
       classes_kmpp = initclass(copy(X'), k)
-      (newclusts, newcenterout,selectedvec,newWSS,newobj) = sparsekmeans1(copy(X'), classes_kmpp, k, sparsity)
+      (newclusts, newcenterout,selectedvec,newWSS,newobj) = ref_sparsekmeans1(copy(X'), classes_kmpp, k, sparsity)
       if newobj < obj
         obj = newobj
         clusts = newclusts
@@ -25,14 +25,18 @@ end
 end
 
 function findMissing(X)
-missing_all=findall(ismissing.(X))
-return(missing_all)
+    missing_all=findall(ismissing.(X))
+    return(missing_all)
 end
 
+#  changed to column mean
 function initialImpute(X)
-    avg = mean(skipmissing(vec(X)))
-    X[findall(ismissing.(X))] .= avg
-    return(X)
+  p, n = size(X)
+  for j in 1:p
+    avg = mean(skipmissing(@view(X[j, :])))
+    X[j, findall(ismissing.(@view(X[j, :])))] .= avg
+  end
+  return(X)
 end
 
 # sparsekpod function, doing SKFR1 on partially observed data
@@ -52,7 +56,7 @@ end
 # fit of each iteration
 
 
-function sparsekpod(X, k, sparsity, kmpp_flag::Bool = true,
+function ref_sparsekpod(X, k, sparsity, kmpp_flag::Bool = true,
      maxiter::Int = 20)
 
   n = size(X,1)
@@ -65,14 +69,15 @@ function sparsekpod(X, k, sparsity, kmpp_flag::Bool = true,
   X_copy = initialImpute(X)
   X_copy=convert(Array{Float64,2}, X_copy)
   init_classes = initclass(copy(X_copy'), k)
-  (clusts, centerout,selectedvec,WSS,obj)= sparsekmeans1(copy(X_copy'), init_classes, k, sparsity)
+  
+  (clusts, centerout,selectedvec,WSS,obj)= ref_sparsekmeans1(copy(X_copy'), init_classes, k, sparsity)
   centers = copy(centerout')
   append!(fit,1 - (sum(WSS)/obj))
   clustMat = centers[clusts, :]
   X_copy[missingindices] = clustMat[missingindices]
   append!(obj_vals,sum((X[nonmissingindices] .- clustMat[nonmissingindices]).^2))
   cluster_vals[1,:]=clusts
-
+  i = 1
   for i = 2:maxiter
     (tempclusts, tempobj, tempcenters,tempfit)= assign_clustppSparse(X_copy, k, centers, sparsity, kmpp_flag)
     clusts = tempclusts

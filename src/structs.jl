@@ -11,10 +11,11 @@ Structure for SKFR.
 - `members`: Number of members of each cluster (length-k Int)
 - `criterion`: cluster criterion (length-p T)
 """
-struct ImputedMatrix{T} <: AbstractMatrix{T}
+mutable struct ImputedMatrix{T} <: AbstractMatrix{T}
     data::Matrix{T}
     clusters::Vector{Int}
     centers::Matrix{T}
+    centers_tmp::Matrix{T}
     members::Vector{Int}
     criterion::Vector{T}
     distances::Matrix{T}
@@ -31,13 +32,14 @@ end
     return size(x.centers, 2)
 end
 
-function ImputedMatrix{T}(data::AbstractMatrix{T}, k::Int; renormalize=true) where {T <: Real}
+function ImputedMatrix{T}(data::AbstractMatrix{T}, k::Int; renormalize=true, initclass=true) where {T <: Real}
     n, p = size(data)
     clusters = Vector{Int}(undef, n)
-    centers = Matrix{T}(undef, p, k)
+    centers = zeros(T, p, k)
+    centers_tmp = zeros(T, p, k)
     # set up column imputation
     fill!(clusters, 1)
-    @inbounds for j in 1:k
+    @inbounds for j in 1:p
         s = zero(T)
         cnt = 0
         for i in 1:n
@@ -48,20 +50,24 @@ function ImputedMatrix{T}(data::AbstractMatrix{T}, k::Int; renormalize=true) whe
             cnt += 1
         end
         avg = s / cnt
-        fill!(centers[:, j], avg)
+        centers[j, :] .= avg
     end
-
     # Initialization step
-    clusters = initclass!(clusters, data, k)
     members = zeros(Int, k)
-    centers = get_centers!(centers, members, data, clusters)
     criterion = zeros(T, p)
     distances = zeros(T, n, k)
 
     μ = zeros(T, p)
     σ = zeros(T, p)
-    
-    ImputedMatrix{T}(data, clusters, centers, members, criterion, distances, μ, σ, renormalize)
+
+    r = ImputedMatrix{T}(data, clusters, centers, centers_tmp, members, criterion, distances, μ, σ, false)
+    if initclass
+        r.clusters = initclass!(r.clusters, r, k)
+    end
+    get_centers!(r)
+    compute_μ_σ!(r)
+    r.renormalize = renormalize
+    return r
 end
 
 @inline function Base.getindex(A::ImputedMatrix{T}, i::Int, j::Int)::T where {T}
@@ -80,7 +86,7 @@ end
 @inline function getindex_raw(A::ImputedMatrix{T}, i::Int, j::Int)::T where T
     r = Base.getindex(A.data, i, j)
     if isnan(r)
-        r = A.centers[cluster[i], j]
+        r = A.centers[j, A.clusters[i]]
     end
     return r
 end    

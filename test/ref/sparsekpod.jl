@@ -29,13 +29,9 @@ function findMissing(X)
     return(missing_all)
 end
 
-#  changed to column mean
 function initialImpute(X)
-  p, n = size(X)
-  for j in 1:p
-    avg = mean(skipmissing(@view(X[j, :])))
-    X[j, findall(ismissing.(@view(X[j, :])))] .= avg
-  end
+  avg = mean(skipmissing(vec(X)))
+  X[findall(ismissing.(X))] .= avg
   return(X)
 end
 

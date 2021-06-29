@@ -30,6 +30,7 @@ function ref_sparsekmeans1(X, class::Vector{Int}, classes::Int,
   end
   switched = true
   selectedvec=zeros(sparsity)
+  cnt = 0
   while switched # iterate until class assignments stabilize
     center=zeros( features, classes)
     members = zeros(Int, classes)
@@ -63,7 +64,9 @@ selectedvec=setdiff(wholevec,J)
         class[case] = j
       end
     end
+    cnt += 1
 end
+println("cnt of sparse1, ref: ", cnt)
     # now calculating the WSS and TSS; used in the permutation test and sparse kpod
     WSSval=zeros(classes)
     for k=1:classes

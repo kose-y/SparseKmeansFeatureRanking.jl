@@ -102,7 +102,6 @@ function sparsekpod(X::AbstractMatrix{T}, k::Int, sparsity::Int, kmpp_flag::Bool
     cluster_vals[:, 1] .= clusts
     i = 1
     for i = 2:maxiter
-
         (tempclusts, tempobj, tempcenters,tempfit)= assign_clustppSparse(X_imp, sparsity, kmpp_flag)
         clusts = tempclusts
         #centers =tempcenters
@@ -122,10 +121,10 @@ function sparsekpod(X::AbstractMatrix{T}, k::Int, sparsity::Int, kmpp_flag::Bool
         append!(obj_vals, err)
         cluster_vals[:, i] = clusts
         if (all(cluster_vals[:, i] .== cluster_vals[:, i - 1]))
-            println("Clusters have converged.")
+            println("Clusters have converged after $i iterations.")
             return(clusts, cluster_vals[:, 1:i],obj_vals[1:i],fit[i],fit[1:i])
             break
         end
     end
-    return(clusts, cluster_vals[:,1:i],obj_vals[1:i],fit[i],fit[1:i])
+    return(clusts, cluster_vals[:,1:maxiter],obj_vals[1:maxiter],fit[maxiter],fit[1:maxiter])
 end

@@ -86,7 +86,7 @@ include("ref/sparsekpod.jl")
         @test TSSval2 ≈ TSSval2_
     end
     @testset "kpod" begin
-        Random.seed!(16962)
+        #Random.seed!(16962)
         (features, cases) = (100, 300);
         (classes, sparsity)  = (3, 33);
         X = randn(features, cases);
@@ -94,40 +94,6 @@ include("ref/sparsekpod.jl")
         (r, s) = (div(cases, 3) + 1, 2 * div(cases, 3));
         X[1:m, r:s] = X[1:m, r:s] .+ 1.0;
         X[1:m, s + 1:end] = X[1:m, s + 1:end] .+ 2.0;
-        # replacing 10% of entries at random
-        missingix=sample(1:features*cases,Int(features*cases*0.1),replace=false)
-        y = convert(Array{Union{Missing,Float64},2}, X)
-        # y is the partially observed version of X above
-        y[ CartesianIndices(y)[missingix]]=missings(Float64, length(missingix))
-
-        # check same initialization
-        Random.seed!(16962)
-        missingindices = findMissing(y)
-        nonmissingindices=setdiff(CartesianIndices(y)[1:end],missingindices)
-        println(size(y))
-        X_copy = initialImpute(y)
-        X_copy=convert(Array{Float64,2}, X_copy)
-        init_classes = initclass(copy(X_copy), classes)
-        Random.seed!(16962)
-        @time (classout3,aa,bb,cc,dd)=ref_sparsekpod(copy(y'),classes,m)
-
-        Random.seed!(16962)
-        y = copy(X)
-        y[CartesianIndices(y)[missingix]] .= NaN
-        y = collect(transpose(y))
-        IM = SKFR.ImputedMatrix{Float64}(y, classes)
-
-        @test all(init_classes .== IM.clusters)
-
-
-        ## The first output argument is the cluster labels, and the rest are not of importance in this example.
-
-
-        y = copy(X)
-        y[CartesianIndices(y)[missingix]] .= NaN
-        y = collect(transpose(y))
-        Random.seed!(16962)
-        @time (classout3_,aa_,bb_,cc_,dd_)=SKFR.sparsekpod(y,classes,m)
 
         truelabels=[];
         class1labels=ones(100);
@@ -137,17 +103,55 @@ include("ref/sparsekpod.jl")
         class3labels=ones(100)*3;
         append!(truelabels,class3labels);
 
-        arisparse3=randindex(classout3, convert(Array{Int64,1},truelabels))
-        println("ARI of sparsekpod (ref): ",arisparse3[1])
+        # replacing 10% of entries at random
+        missingix=sample(1:features*cases,Int(features*cases*0.1),replace=false)
+        y = convert(Array{Union{Missing,Float64},2}, X)
+        # y is the partially observed version of X above
+        y[ CartesianIndices(y)[missingix]]=missings(Float64, length(missingix))
 
-        arisparse3=randindex(classout3_, convert(Array{Int64,1},truelabels))
-        println("ARI of sparsekpod (new): ",arisparse3[1])
+        #Random.seed!(16962)
+        missingindices = findMissing(y)
+        nonmissingindices=setdiff(CartesianIndices(y)[1:end],missingindices)
+        println(size(y))
+        X_copy = initialImpute(y)
+        X_copy=convert(Array{Float64,2}, X_copy)
+        for l in 1:10
+            #Random.seed!(77 + l)
+            init_classes = initclass(copy(X_copy), classes)
+            @time (classout3,aa,bb,cc,dd)=ref_sparsekpod(copy(y'),classes,m)
+            arisparse3=randindex(classout3, convert(Array{Int64,1},truelabels))
+            println("ARI of sparsekpod (ref): ",arisparse3[1])
+        end
 
-        println(classout3_)
-        println(aa_)
-        println(bb_)
-        println(cc_)
-        println(dd_)
+        #Random.seed!(16962)
+        y = copy(X)
+        y[CartesianIndices(y)[missingix]] .= NaN
+        y = collect(transpose(y))
+        IM = SKFR.ImputedMatrix{Float64}(y, classes)
+
+        # @test all(init_classes .== IM.clusters)
+
+
+        ## The first output argument is the cluster labels, and the rest are not of importance in this example.
+
+
+        y = copy(X)
+        y[CartesianIndices(y)[missingix]] .= NaN
+        y = collect(transpose(y))
+        for l in 1:10
+            #Random.seed!(77 + l)
+            @time (classout3_,aa_,bb_,cc_,dd_)=SKFR.sparsekpod(y,classes,m, false, 1)
+            arisparse3=randindex(classout3_, convert(Array{Int64,1},truelabels))
+            println("ARI of sparsekpod (new): ",arisparse3[1])
+        end
+
+
+
+        # println(classout3_)
+        # println(aa_)
+        # println(bb_)
+        # println(cc_)
+        # println(dd_)
         #(clusts, cluster_vals[:,1:i],obj_vals[1:i],fit[i],fit[1:i])
 
     end

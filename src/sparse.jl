@@ -33,10 +33,11 @@ function sparsekmeans1(X::ImputedMatrix{T}, sparsity::Int;
             X[:, j] .= zscore(@view(X[:, j]))
         end
     else
-        compute_μ_σ!(X)
+        #compute_μ_σ!(X)
     end
     switched = true
     selectedvec = zeros(sparsity)
+    cnt = 0
     while switched # iterate until class assignments stabilize
         get_centers!(X)
         for j = 1:p # compute the sparsity criterion
@@ -53,7 +54,9 @@ function sparsekmeans1(X::ImputedMatrix{T}, sparsity::Int;
         selectedvec = setdiff(wholevec,J)
         get_distances_to_center!(X)
         c, switched = get_clusters!(X)
+        cnt += 1
     end
+    println("cnt of sparse1:", cnt)
     # now calculating the WSS and TSS; used in the permutation test and sparse kpod
     WSSval = zeros(T, k)
     for j in 1:p
@@ -107,7 +110,7 @@ function sparsekmeans2(X::ImputedMatrix{T}, sparsity::Int;
             X[:, j] .= zscore(@view(X[:, j]))
         end
     else
-        compute_μ_σ!(X)
+        #compute_μ_σ!(X)
     end
     switched = true
     while switched # iterate until class assignments stabilize

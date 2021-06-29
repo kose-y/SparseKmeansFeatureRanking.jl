@@ -122,15 +122,19 @@ function compute_μ_σ!(A::ImputedMatrix{T}) where T
     @inbounds for j in 1:p
         m = zero(T)
         m2 = zero(T)
+        cnt = 0
         for i in 1:n
-            v = getindex_raw(A, i, j)
-            m += v
-            m2 += v ^ 2
+            v = A.data[i,j]
+            if !isnan(v)
+                m += v
+                m2 += v ^ 2
+                cnt += 1
+            end
         end
-        m /= n
-        m2 /= n
+        m /= cnt
+        m2 /= cnt
         A.μ[j] = m
-        A.σ[j] = sqrt((m2 - m ^ 2) * n / (n - 1))
+        A.σ[j] = sqrt((m2 - m ^ 2) * cnt / (cnt - 1))
     end
 end
 

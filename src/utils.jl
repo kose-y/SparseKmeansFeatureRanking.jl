@@ -138,12 +138,13 @@ function compute_μ_σ!(A::ImputedMatrix{T}) where T
     end
 end
 
-function get_distances_to_center!(X::ImputedMatrix{T}) where T
+function get_distances_to_center!(X::ImputedMatrix{T}, selectedvec::Vector{Int}) where T
+    # TODO: skip non-selected variables
     n, p = size(X)
     k = size(X.centers, 2)
     fill!(X.distances, zero(T))
     for kk in 1:k
-        for j in 1:p
+        for j in selectedvec
             @inbounds @fastmath @simd for i in 1:n
                 X.distances[i, kk] = X.distances[i, kk] + (X[i, j] - X.centers[j, kk])^2
             end

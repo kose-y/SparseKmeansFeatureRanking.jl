@@ -36,7 +36,7 @@ function sparsekmeans1(X::ImputedMatrix{T}, sparsity::Int;
         #compute_μ_σ!(X)
     end
     switched = true
-    selectedvec = zeros(sparsity)
+    selectedvec = zeros(Int, sparsity)
     cnt = 0
     while switched # iterate until class assignments stabilize
         get_centers!(X)
@@ -49,10 +49,11 @@ function sparsekmeans1(X::ImputedMatrix{T}, sparsity::Int;
         # Gather the criterion to the master node
         # find the (p-s) least informative features and setting them to 0
         J = partialsortperm(X.criterion,1:(p-sparsity),rev=false)
+        # TODO: Could be faster the other way...(choose top `sparsity` variables)
         fill!(@view(X.centers[J, :]), zero(T))
         #center[:, J] = zeros(length(J),classes)
-        selectedvec = setdiff(wholevec,J)
-        get_distances_to_center!(X)
+        selectedvec .= sort!(setdiff(wholevec,J))
+        get_distances_to_center!(X, selectedvec)
         c, switched = get_clusters!(X)
         cnt += 1
     end
@@ -103,7 +104,7 @@ function sparsekmeans2(X::ImputedMatrix{T}, sparsity::Int;
   
     (n, p) = size(X)
     k = classes(X)
-    selectedvec = zeros(T, k, sparsity)
+    selectedvec = zeros(Int, k, sparsity)
     wholevec=1:p
     if normalize
         for j = 1:p # normalize each feature
@@ -123,7 +124,8 @@ function sparsekmeans2(X::ImputedMatrix{T}, sparsity::Int;
                 selectedvec[kk,:] .= setdiff(wholevec,J)
             end
         end
-        get_distances_to_center!(X)
+        selectedvec_ = sort!(unique(selectedvec[:]))
+        get_distances_to_center!(X, selectedvec_)
         _, switched = get_clusters!(X)
     end
 

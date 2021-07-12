@@ -7,7 +7,7 @@ enter with an initial guess of the classifications.
 
 # Input:
 
-* `X`: n by p ImputedMatrix
+* `X`: n by p AbstractImputedMatrix
 * `sparsity`: sparsity level (total nonzeros)
 
 # Ouptut: 
@@ -18,7 +18,7 @@ enter with an initial guess of the classifications.
 * within-cluster sum of squares (WSS), a vector.
 * total sum of squares (TSS)
 """
-function sparsekmeans1(X::ImputedMatrix{T}, sparsity::Int; 
+function sparsekmeans1(X::AbstractImputedMatrix{T}, sparsity::Int; 
     normalize::Bool=!X.renormalize) where T <: Real
 
     n, p = size(X)
@@ -99,7 +99,7 @@ the classifications.
 * within-cluster sum of squares (WSS), a vector.
 * total sum of squares (TSS)
 """
-function sparsekmeans2(X::ImputedMatrix{T}, sparsity::Int;
+function sparsekmeans2(X::AbstractImputedMatrix{T}, sparsity::Int;
     normalize::Bool=!X.renormalize) where T <: Real
   
     (n, p) = size(X)

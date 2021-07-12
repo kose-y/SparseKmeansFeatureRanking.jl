@@ -117,7 +117,7 @@ function kmeans(X::Matrix{T}, class::Vector{Int},
     return (class, center)
 end
   
-function compute_μ_σ!(A::ImputedMatrix{T}) where T
+function compute_μ_σ!(A::AbstractImputedMatrix{T}) where T
     n, p = size(A)
     @inbounds for j in 1:p
         m = zero(T)
@@ -138,12 +138,34 @@ function compute_μ_σ!(A::ImputedMatrix{T}) where T
     end
 end
 
-function get_distances_to_center!(X::ImputedMatrix{T}) where T
+function compute_μ_σ!(A::ImputedSnpMatrix{T}) where T
+    n, p = size(A)
+    @inbounds for j in 1:p
+        m = zero(T)
+        m2 = zero(T)
+        cnt = 0
+        for i in 1:n
+            v = SnpArrays.convert(T, getindex(A.data, i, j), A.model)
+            if !isnan(v)
+                m += v
+                m2 += v ^ 2
+                cnt += 1
+            end
+        end
+        m /= cnt
+        m2 /= cnt
+        A.μ[j] = m
+        A.σ[j] = sqrt((m2 - m ^ 2) * cnt / (cnt - 1))
+    end
+end
+
+function get_distances_to_center!(X::AbstractImputedMatrix{T}, selectedvec::Vector{Int}) where T
+    # TODO: skip non-selected variables
     n, p = size(X)
     k = size(X.centers, 2)
     fill!(X.distances, zero(T))
     for kk in 1:k
-        for j in 1:p
+        for j in selectedvec
             @inbounds @fastmath @simd for i in 1:n
                 X.distances[i, kk] = X.distances[i, kk] + (X[i, j] - X.centers[j, kk])^2
             end
@@ -158,7 +180,7 @@ end
 """ 
     get_clusters!(X, center)
 """
-function get_clusters!(X::ImputedMatrix{T}) where T
+function get_clusters!(X::AbstractImputedMatrix{T}) where T
     n, p = size(X)
     k = size(X.centers, 2)
     switched = false
@@ -178,7 +200,7 @@ end
 - X: n x p
 - class: length-n
 """
-function get_centers!(X::ImputedMatrix{T}) where T <: Real
+function get_centers!(X::AbstractImputedMatrix{T}) where T <: Real
     n, p = size(X)
     k = size(X.centers, 2)
     @assert length(X.clusters) == n

@@ -1,4 +1,4 @@
-function assign_clustppSparse(X::ImputedMatrix, sparsity,
+function assign_clustppSparse(X::AbstractImputedMatrix, sparsity,
     kmpp_flag= true, max_iter= 20)
     n, p = size(X)
     k = classes(X)
@@ -61,7 +61,7 @@ TRY TO AVOID ANY ADDITIONAL n x p MATRICES.
 - fit = 1 - sum(WSS) / obj
 - fit of each iteration
 """
-function sparsekpod(X::AbstractMatrix{T}, k::Int, sparsity::Int, kmpp_flag::Bool = true,
+function sparsekpod(X::AbstractImputedMatrix{T}, sparsity::Int, kmpp_flag::Bool = true,
     maxiter::Int = 20) where T <: Real
    
     n, p = size(X)
@@ -73,7 +73,7 @@ function sparsekpod(X::AbstractMatrix{T}, k::Int, sparsity::Int, kmpp_flag::Bool
     #missingindices = findMissing(X)
     #nonmissingindices=setdiff(CartesianIndices(X)[1:end],missingindices)
     # do not create these. Retrieve imputed values on the fly. 
-    X_imp = ImputedMatrix{T}(X, k)
+    #X_imp = ImputedMatrix{T}(X, k)
     #X_copy = initialImpute(X)
     #X_copy = convert(Array{Float64,2}, X_copy)
     # do not require copy of a matrix for these subfunctions.
@@ -82,7 +82,7 @@ function sparsekpod(X::AbstractMatrix{T}, k::Int, sparsity::Int, kmpp_flag::Bool
     #init_classes = initclass(copy(X_copy'), k)
     # decide on sparsekmeans1 or sparsekmeans2. maybe use an additional argument? 
     # This requires center-to-sample distances. 
-    (clusts, centerout,selectedvec,WSS,obj)= sparsekmeans1(X_imp, sparsity)
+    (clusts, centerout,selectedvec,WSS,obj)= sparsekmeans1(X, sparsity)
     # maybe we can do these in-place.
     #centers = copy(centerout')
     append!(fit,1 - (sum(WSS)/obj))
@@ -94,15 +94,15 @@ function sparsekpod(X::AbstractMatrix{T}, k::Int, sparsity::Int, kmpp_flag::Bool
     err = zero(T)
     @inbounds for j in 1:p
         for i in 1:n
-            kk = X_imp.clusters[i]
-            err += (X_imp[i, j] - X_imp.centers[j, kk]) ^ 2
+            kk = X.clusters[i]
+            err += (X[i, j] - X.centers[j, kk]) ^ 2
         end
     end
     append!(obj_vals, err)
     cluster_vals[:, 1] .= clusts
     i = 1
     for i = 2:maxiter
-        (tempclusts, tempobj, tempcenters,tempfit)= assign_clustppSparse(X_imp, sparsity, kmpp_flag)
+        (tempclusts, tempobj, tempcenters,tempfit)= assign_clustppSparse(X, sparsity, kmpp_flag)
         clusts = tempclusts
         #centers =tempcenters
         append!(fit,tempfit)
@@ -114,8 +114,8 @@ function sparsekpod(X::AbstractMatrix{T}, k::Int, sparsity::Int, kmpp_flag::Bool
         err = zero(T)
         @inbounds for j in 1:p
             for i in 1:n
-                kk = X_imp.clusters[i]
-                err += (X_imp[i, j] - X_imp.centers[j, kk]) ^ 2
+                kk = X.clusters[i]
+                err += (X[i, j] - X.centers[j, kk]) ^ 2
             end
         end
         append!(obj_vals, err)

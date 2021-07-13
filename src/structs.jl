@@ -98,7 +98,7 @@ function ImputedSnpMatrix{T}(data::SnpArray, k::Int; renormalize=true, initclass
         s = zero(T)
         cnt = 0
         for i in 1:n
-            v = SnpArrays.convert(T, getindex(s, i, j), model)
+            v = SnpArrays.convert(T, getindex(data, i, j), model)
             if isnan(v)
                 continue
             end
@@ -130,7 +130,9 @@ end
     r = getindex_raw(A, i, j)
     if A.renormalize
         r -= A.μ[j]
-        r /= A.σ[j]
+        if A.σ[j] > eps()
+            r /= A.σ[j]
+        end
     end
     r
 end

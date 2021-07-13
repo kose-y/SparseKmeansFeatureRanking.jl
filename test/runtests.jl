@@ -1,6 +1,7 @@
 using SKFR
 using Test
 using Distances
+using SnpArrays
 using StatsBase
 using Statistics
 using Random
@@ -12,7 +13,7 @@ include("ref/sparsekpod.jl")
 @testset "SKFR.jl" begin
     @testset "nonmissing" begin
         Random.seed!(16962)
-        (features, cases) = (1000, 3000);
+        (features, cases) = (100, 300);
         (classes, sparsity)  = (3, 33);
         X = randn(features, cases);
         (m, n) = (div(features, 3), 2 * div(features, 3));
@@ -32,9 +33,6 @@ include("ref/sparsekpod.jl")
         # selectedvec contains the top s most informative features.
         #WSSval= within cluster sum of squares; TSSval=total sum of squares
 
-
-        (classout1, center1, selectedvec1, WSSval1, TSSval1) = ref_sparsekmeans1(X1, class1, classes,m);
-        (classout2, center2, selectedvec2, WSSval2, TSSval2) = ref_sparsekmeans2(X2, class2, classes,m);
 
         @time (classout1, center1, selectedvec1, WSSval1, TSSval1) = ref_sparsekmeans1(X1, class1, classes,m);
         @time (classout2, center2, selectedvec2, WSSval2, TSSval2) = ref_sparsekmeans2(X2, class2, classes,m);
@@ -73,10 +71,6 @@ include("ref/sparsekpod.jl")
             end
         end
 
-        (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(X1, m);
-        (classout2_, center2_, selectedvec2_, WSSval2_, TSSval2_) = SKFR.sparsekmeans2(X2, m);
-        X1 = deepcopy(IM)
-        X2 = deepcopy(IM)
         @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(X1, m);
         @time (classout2_, center2_, selectedvec2_, WSSval2_, TSSval2_) = SKFR.sparsekmeans2(X2, m);
 
@@ -162,4 +156,20 @@ include("ref/sparsekpod.jl")
     #     #(clusts, cluster_vals[:,1:i],obj_vals[1:i],fit[i],fit[1:i])
 
     # end
+    @testset "SnpArray" begin
+        EUR = SnpArray(SnpArrays.datadir("EUR_subset.bed")) # No missing
+        EURtrue = convert(Matrix{Float64}, EUR, model=ADDITIVE_MODEL, center=false, scale=false)
+        Random.seed!(16962)
+        ISM = SKFR.ImputedSnpMatrix{Float64}(EUR, 3)
+        Random.seed!(16962)
+        IM = SKFR.ImputedMatrix{Float64}(EURtrue, 3)
+        @time (classout1, center1, selectedvec1, WSSval1, TSSval1) = SKFR.sparsekmeans1(IM, 30);
+        @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30);
+        
+        @test classout1 == classout1_
+        @test all(center1 .≈ center1_)
+        @test all(selectedvec1 .== selectedvec1_)
+        @test all(WSSval1 .≈ WSSval1_)
+        @test TSSval1 ≈ TSSval1_
+    end
 end

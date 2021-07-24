@@ -34,8 +34,8 @@ include("ref/sparsekpod.jl")
         #WSSval= within cluster sum of squares; TSSval=total sum of squares
 
 
-        @time (classout1, center1, selectedvec1, WSSval1, TSSval1) = ref_sparsekmeans1(X1, class1, classes,m);
-        @time (classout2, center2, selectedvec2, WSSval2, TSSval2) = ref_sparsekmeans2(X2, class2, classes,m);
+        @time (classout1, center1, selectedvec1, WSSval1, TSSval1) = ref_sparsekmeans1(X1, class1, classes, sparsity);
+        @time (classout2, center2, selectedvec2, WSSval2, TSSval2) = ref_sparsekmeans2(X2, class2, classes, sparsity);
 
         Random.seed!(16962)
         IM = SKFR.ImputedMatrix{Float64}(collect(transpose(X)), 3)
@@ -71,8 +71,8 @@ include("ref/sparsekpod.jl")
             end
         end
 
-        @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(X1, m);
-        @time (classout2_, center2_, selectedvec2_, WSSval2_, TSSval2_) = SKFR.sparsekmeans2(X2, m);
+        @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(X1, sparsity);
+        @time (classout2_, center2_, selectedvec2_, WSSval2_, TSSval2_) = SKFR.sparsekmeans2(X2, sparsity);
 
         # test sparsekmeans results
         @test all(classout1 .== classout1_)
@@ -119,7 +119,7 @@ include("ref/sparsekpod.jl")
     #     for l in 1:10
     #         #Random.seed!(77 + l)
     #         init_classes = initclass(copy(X_copy), classes)
-    #         @time (classout3,aa,bb,cc,dd)=ref_sparsekpod(copy(y'),classes,m)
+    #         @time (classout3,aa,bb,cc,dd)=ref_sparsekpod(copy(y'),classes,sparsity)
     #         arisparse3=randindex(classout3, convert(Array{Int64,1},truelabels))
     #         println("ARI of sparsekpod (ref): ",arisparse3[1])
     #     end
@@ -141,7 +141,7 @@ include("ref/sparsekpod.jl")
     #     y = collect(transpose(y))
     #     for l in 1:10
     #         #Random.seed!(77 + l)
-    #         @time (classout3_,aa_,bb_,cc_,dd_)=SKFR.sparsekpod(y,classes,m, false, 1)
+    #         @time (classout3_,aa_,bb_,cc_,dd_)=SKFR.sparsekpod(y,classes,sparsity, false, 1)
     #         arisparse3=randindex(classout3_, convert(Array{Int64,1},truelabels))
     #         println("ARI of sparsekpod (new): ",arisparse3[1])
     #     end

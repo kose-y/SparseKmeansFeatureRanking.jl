@@ -147,4 +147,35 @@ function sparsekmeans2(X::AbstractImputedMatrix{T}, sparsity::Int;
         end
     end
     return (X.clusters, X.centers,selectedvec,WSSval,TSSval)
-  end
+end
+
+function sparsekmeans_repeat(X::AbstractImputedMatrix{T}, sparsity::Int;
+    normalize::Bool=!X.renormalize, ftn = sparsekmeans1, iter::Int = 20) where T <: Real
+    n, p = size(X)
+    k = classes(X)
+    (clusts, centers, selectedvec, WSS, obj) = ftn(X, sparsity; normalize=normalize)
+    X.bestclusters .= X.clusters
+    X.bestcenters .= X.centers
+    fit = 1 - (sum(WSS)/obj)
+    println("Iteration 1, fit: ", fit)
+    #centers = copy(centerout')
+    # Consider dropping this step, or using a lower `max_iter`.
+    for iter = 2:iter
+        reinitialize!(X)
+        (newclusts, newcenterout, newselectedvec, newWSS, newobj) = ftn(X, sparsity; normalize=normalize)
+        newfit = 1 - (sum(newWSS)/obj)
+        println("Iteration $iter, fit: ", newfit)
+        if fit < newfit
+            println("bestcluster updated")
+            obj = newobj
+            WSS = newWSS
+            X.bestclusters .= X.clusters
+            fit = newfit
+            X.bestcenters .= X.centers
+            selectedvec .= newselectedvec
+        end
+    end
+    X.clusters .= X.bestclusters
+    X.centers .= X.bestcenters
+    return(X.bestclusters, X.bestcenters, selectedvec, WSS, obj, fit)
+end

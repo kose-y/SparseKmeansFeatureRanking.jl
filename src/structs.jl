@@ -17,6 +17,8 @@ mutable struct ImputedMatrix{T} <: AbstractImputedMatrix{T}
     data::Matrix{T}
     clusters::Vector{Int}
     centers::Matrix{T}
+    bestclusters::Vector{Int}
+    bestcenters::Matrix{T}
     centers_tmp::Matrix{T}
     members::Vector{Int}
     criterion::Vector{T}
@@ -31,6 +33,8 @@ mutable struct ImputedSnpMatrix{T} <: AbstractImputedMatrix{T}
     model::Union{Val{1}, Val{2}, Val{3}}
     clusters::Vector{Int}
     centers::Matrix{T}
+    bestclusters::Vector{Int}
+    bestcenters::Matrix{T}
     centers_tmp::Matrix{T}
     members::Vector{Int}
     criterion::Vector{T}
@@ -53,6 +57,8 @@ function ImputedMatrix{T}(data::AbstractMatrix{T}, k::Int; renormalize=true, ini
     clusters = Vector{Int}(undef, n)
     centers = zeros(T, p, k)
     centers_tmp = zeros(T, p, k)
+    bestclusters = Vector{Int}(undef, n)
+    bestcenters = zeros(T, p, k)
     # set up column imputation
     fill!(clusters, 1)
     @inbounds for j in 1:p
@@ -76,7 +82,7 @@ function ImputedMatrix{T}(data::AbstractMatrix{T}, k::Int; renormalize=true, ini
     μ = zeros(T, p)
     σ = zeros(T, p)
 
-    r = ImputedMatrix{T}(data, clusters, centers, centers_tmp, members, criterion, distances, μ, σ, false)
+    r = ImputedMatrix{T}(data, clusters, centers, bestclusters, bestcenters, centers_tmp, members, criterion, distances, μ, σ, false)
     if initclass
         r.clusters = initclass!(r.clusters, r, k)
     end
@@ -91,6 +97,8 @@ function ImputedSnpMatrix{T}(data::SnpArray, k::Int; renormalize=true, initclass
     n, p = size(data)
     clusters = Vector{Int}(undef, n)
     centers = zeros(T, p, k)
+    bestclusters = Vector{Int}(undef, n)
+    bestcenters = zeros(T, p, k)
     centers_tmp = zeros(T, p, k)
     # set up column imputation
     fill!(clusters, 1)
@@ -116,14 +124,21 @@ function ImputedSnpMatrix{T}(data::SnpArray, k::Int; renormalize=true, initclass
     μ = zeros(T, p)
     σ = zeros(T, p)
 
-    r = ImputedSnpMatrix{T}(data, model, clusters, centers, centers_tmp, members, criterion, distances, μ, σ, false)
+    r = ImputedSnpMatrix{T}(data, model, clusters, centers, bestclusters, bestcenters, centers_tmp, members, criterion, distances, μ, σ, false)
     if initclass
-        r.clusters = initclass!(r.clusters, r, k)
+        initclass!(r.clusters, r, k)
     end
     get_centers!(r)
     compute_μ_σ!(r)
     r.renormalize = renormalize
     return r
+end
+
+function reinitialize!(X::AbstractImputedMatrix)
+    k = classes(X)
+    initclass!(X.clusters, X, k)
+    get_centers!(X)
+    return X
 end
 
 @inline function Base.getindex(A::AbstractImputedMatrix{T}, i::Int, j::Int)::T where {T}

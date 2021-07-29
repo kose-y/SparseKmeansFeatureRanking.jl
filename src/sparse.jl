@@ -170,7 +170,6 @@ function sparsekmeans_repeat(X::AbstractImputedMatrix{T}, sparsity::Int;
         println("Iteration $i, fit: ", newfit)
         if fit < newfit
             println("bestcluster updated")
-            obj = newobj
             WSS = newWSS
             X.bestclusters .= X.clusters
             fit = newfit
@@ -180,5 +179,5 @@ function sparsekmeans_repeat(X::AbstractImputedMatrix{T}, sparsity::Int;
     end
     X.clusters .= X.bestclusters
     X.centers .= X.bestcenters
-    return(X.bestclusters, X.bestcenters, selectedvec, WSS, obj, fit)
+    return(X.bestclusters, X.bestcenters, selectedvec, WSS, TSS, fit)
 end

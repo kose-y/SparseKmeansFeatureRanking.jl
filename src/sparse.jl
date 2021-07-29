@@ -153,17 +153,18 @@ function sparsekmeans_repeat(X::AbstractImputedMatrix{T}, sparsity::Int;
     normalize::Bool=!X.renormalize, ftn = sparsekmeans1, iter::Int = 20) where T <: Real
     n, p = size(X)
     k = classes(X)
-    (clusts, centers, selectedvec, WSS, obj) = ftn(X, sparsity; normalize=normalize)
+    (clusts, centers, selectedvec, WSS, TSS) = ftn(X, sparsity; normalize=normalize)
     X.bestclusters .= X.clusters
     X.bestcenters .= X.centers
-    fit = 1 - (sum(WSS)/obj)
+    fit = 1 - (sum(WSS)/TSS)
     println("Iteration 1, fit: ", fit)
     #centers = copy(centerout')
     # Consider dropping this step, or using a lower `max_iter`.
     for i = 2:iter
         reinitialize!(X)
-        (newclusts, newcenterout, newselectedvec, newWSS, newobj) = ftn(X, sparsity; normalize=normalize)
-        newfit = 1 - (sum(newWSS)/obj)
+        # By definition, TSS should be the same across initializations. 
+        (newclusts, newcenterout, newselectedvec, newWSS, _) = ftn(X, sparsity; normalize=normalize)
+        newfit = 1 - (sum(newWSS)/TSS)
         println("Iteration $i, fit: ", newfit)
         if fit < newfit
             println("bestcluster updated")

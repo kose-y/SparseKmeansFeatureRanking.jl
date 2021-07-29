@@ -48,11 +48,12 @@ function sparsekmeans1(X::AbstractImputedMatrix{T}, sparsity::Int;
         end
         # Gather the criterion to the master node
         # find the (p-s) least informative features and setting them to 0
-        J = partialsortperm(X.criterion,1:(p-sparsity),rev=false)
+        J = partialsortperm(X.criterion, 1:sparsity, rev=true)
+        nonselected = setdiff(wholevec, J)
         # TODO: Could be faster the other way...(choose top `sparsity` variables)
-        fill!(@view(X.centers[J, :]), zero(T))
+        fill!(@view(X.centers[nonselected, :]), zero(T))
         #center[:, J] = zeros(length(J),classes)
-        selectedvec .= sort!(setdiff(wholevec,J))
+        selectedvec .= J
         get_distances_to_center!(X, selectedvec)
         c, switched = get_clusters!(X)
         cnt += 1
@@ -119,9 +120,10 @@ function sparsekmeans2(X::AbstractImputedMatrix{T}, sparsity::Int;
         get_centers!(X)
         for kk = 1:k 
             if X.members[kk] > 0 # set the smallest center components to 0
-                J = partialsortperm(X.centers[:, kk] .^ 2 .* X.members[kk], 1:(p - sparsity), by = abs)
-                fill!(@view(X.centers[J, kk]), zero(T))
-                selectedvec[kk,:] .= setdiff(wholevec,J)
+                J = partialsortperm(X.centers[:, kk] .^ 2 .* X.members[kk], 1:sparsity, rev = true, by = abs)
+                nonselected = setdiff(wholevec, J)
+                fill!(@view(X.centers[nonselected, kk]), zero(T))
+                selectedvec[kk,:] .= J
             end
         end
         selectedvec_ = sort!(unique(selectedvec[:]))

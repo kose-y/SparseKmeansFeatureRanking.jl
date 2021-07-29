@@ -110,7 +110,7 @@ function ref_sparsekmeans2(X::Matrix{T}, class::Vector{Int}, classes::Int,
   members = zeros(Int, classes)
   criterion = zeros(T, features)
   distance = zeros(T, classes, cases)
-  selectedvec=zeros(T,classes,sparsity)
+  selectedvec=zeros(Int,classes,sparsity)
   wholevec=1:features
   for i = 1:features # normalize each feature
     X[i, :] = zscore(X[i, :])

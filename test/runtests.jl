@@ -77,11 +77,14 @@ include("ref/sparsekpod.jl")
         # test sparsekmeans results
         @test all(classout1 .== classout1_)
         @test all(isapprox.(center1, center1_))
-        @test all(selectedvec1_ .== selectedvec1)
+        @test all(sort!(selectedvec1_) .== selectedvec1)
         @test WSSval1 ≈ WSSval1_
         @test TSSval1 ≈ TSSval1_
         @test all(classout2 .== classout2_)
         @test all(isapprox.(center2, center2_))
+        for i in 1:classes
+            sort!(@view(selectedvec2_[i, :]))
+        end
         @test all(selectedvec2_ .== selectedvec2)
         @test WSSval2 ≈ WSSval2_
         @test TSSval2 ≈ TSSval2_

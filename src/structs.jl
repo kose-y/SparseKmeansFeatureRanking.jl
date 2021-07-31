@@ -143,7 +143,9 @@ end
 
 @inline function Base.getindex(A::AbstractImputedMatrix{T}, i::Int, j::Int)::T where {T}
     r = getindex_raw(A, i, j)
-    if A.renormalize
+    if isnan(r)
+        r = A.centers[j, A.clusters[i]]
+    elseif A.renormalize
         r -= A.μ[j]
         if A.σ[j] > eps()
             r /= A.σ[j]
@@ -161,17 +163,9 @@ end
 end
 
 @inline function getindex_raw(A::AbstractImputedMatrix{T}, i::Int, j::Int)::T where T
-    r = Base.getindex(A.data, i, j)
-    if isnan(r)
-        r = A.centers[j, A.clusters[i]]
-    end
-    return r
+    Base.getindex(A.data, i, j)
 end    
 
 @inline function getindex_raw(A::ImputedSnpMatrix{T}, i::Int, j::Int)::T where T
-    r = SnpArrays.convert(T, getindex(A.data, i, j), A.model)
-    if isnan(r)
-        r = A.centers[j, A.clusters[i]]
-    end
-    return r
+    SnpArrays.convert(T, getindex(A.data, i, j), A.model)
 end  

@@ -2,6 +2,8 @@ function assign_clustppSparse(X::AbstractImputedMatrix, sparsity,
     kmpp_flag= true, max_iter= 20)
     n, p = size(X)
     k = classes(X)
+    # recompute clusters with new imputation
+    get_distances_to_center!(X)
     get_clusters!(X)
     #init_classes= get_classes(copy(X'),copy(init_centers'))
     (clusts, centerout,selectedvec,WSS,obj) = sparsekmeans1(X, sparsity)
@@ -82,6 +84,7 @@ function sparsekpod(X::AbstractImputedMatrix{T}, sparsity::Int, kmpp_flag::Bool 
     #init_classes = initclass(copy(X_copy'), k)
     # decide on sparsekmeans1 or sparsekmeans2. maybe use an additional argument? 
     # This requires center-to-sample distances. 
+
     (clusts, centerout,selectedvec,WSS,obj)= sparsekmeans1(X, sparsity)
     # maybe we can do these in-place.
     #centers = copy(centerout')
@@ -102,6 +105,10 @@ function sparsekpod(X::AbstractImputedMatrix{T}, sparsity::Int, kmpp_flag::Bool 
     cluster_vals[:, 1] .= clusts
     i = 1
     for i = 2:maxiter
+        X.centers_stable .= X.μ .+ X.centers .* X.σ
+        #compute_μ_σ!(X)
+        X.clusters_stable .= X.clusters
+
         (tempclusts, tempobj, tempcenters,tempfit)= assign_clustppSparse(X, sparsity, kmpp_flag)
         clusts = tempclusts
         #centers =tempcenters
@@ -126,5 +133,6 @@ function sparsekpod(X::AbstractImputedMatrix{T}, sparsity::Int, kmpp_flag::Bool 
             break
         end
     end
+    X.centers_stable .= X.μ .+ X.centers .* X.σ
     return(clusts, cluster_vals[:,1:maxiter],obj_vals[1:maxiter],fit[maxiter],fit[1:maxiter])
 end

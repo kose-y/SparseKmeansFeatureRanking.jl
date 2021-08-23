@@ -25,7 +25,6 @@ function sparsekmeans1(X::AbstractImputedMatrix{T}, sparsity::Int;
     k = classes(X)
     fill!(X.members, zero(Int))
     fill!(X.criterion, zero(T))
-
     wholevec=1:p
     if normalize
         for j = 1:p # normalize each feature
@@ -33,11 +32,12 @@ function sparsekmeans1(X::AbstractImputedMatrix{T}, sparsity::Int;
             X[:, j] .= zscore(@view(X[:, j]))
         end
     else
-        #compute_μ_σ!(X)
+        compute_μ_σ!(X)
     end
     switched = true
     selectedvec = zeros(Int, sparsity)
     cnt = 0
+
     while switched # iterate until class assignments stabilize
         get_centers!(X)
         for j = 1:p # compute the sparsity criterion
@@ -112,7 +112,7 @@ function sparsekmeans2(X::AbstractImputedMatrix{T}, sparsity::Int;
             X[:, j] .= zscore(@view(X[:, j]))
         end
     else
-        #compute_μ_σ!(X)
+        compute_μ_σ!(X)
     end
     switched = true
     while switched # iterate until class assignments stabilize

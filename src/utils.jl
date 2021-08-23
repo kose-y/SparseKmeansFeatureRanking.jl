@@ -119,47 +119,32 @@ end
   
 function compute_μ_σ!(A::AbstractImputedMatrix{T}) where T
     n, p = size(A)
+    A.μ .= zero(T)
+    A.σ .= one(T)
     @inbounds for j in 1:p
-        m = zero(T)
-        m2 = zero(T)
-        cnt = 0
-        for i in 1:n
-            v = A.data[i,j]
-            if !isnan(v)
-                m += v
-                m2 += v ^ 2
-                cnt += 1
-            end
-        end
-        m /= cnt
-        m2 /= cnt
-        A.μ[j] = m
-        A.σ[j] = sqrt((m2 - m ^ 2) * cnt / (cnt - 1))
+        A.μ[j], A.σ[j] = StatsBase.mean_and_std(@view A[:, j])
+
+        # m = zero(T)
+        # m2 = zero(T)
+        # cnt = 0
+        # for i in 1:n
+        #     v = getindex_raw(A, i, j)
+        #     if isnan(v)
+        #         kk = A.clusters[i]
+        #         v = A.centers_stable[j, kk] * A.σ[j] + A.μ[j]
+        #     end
+        #     m += v
+        #     m2 += v ^ 2
+        #     cnt += 1
+        # end
+        # m /= cnt
+        # m2 /= cnt
+        # A.μ[j] = m
+        # A.σ[j] = sqrt((m2 - m ^ 2) * cnt / (cnt - 1))
     end
 end
 
-function compute_μ_σ!(A::ImputedSnpMatrix{T}) where T
-    n, p = size(A)
-    @inbounds for j in 1:p
-        m = zero(T)
-        m2 = zero(T)
-        cnt = 0
-        for i in 1:n
-            v = SnpArrays.convert(T, getindex(A.data, i, j), A.model)
-            if !isnan(v)
-                m += v
-                m2 += v ^ 2
-                cnt += 1
-            end
-        end
-        m /= cnt
-        m2 /= cnt
-        A.μ[j] = m
-        A.σ[j] = sqrt((m2 - m ^ 2) * cnt / (cnt - 1))
-    end
-end
-
-function get_distances_to_center!(X::AbstractImputedMatrix{T}, selectedvec::Vector{Int}) where T
+function get_distances_to_center!(X::AbstractImputedMatrix{T}, selectedvec::AbstractVector{Int}=1:size(X, 2)) where T
     # TODO: skip non-selected variables
     n, p = size(X)
     k = size(X.centers, 2)

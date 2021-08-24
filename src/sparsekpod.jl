@@ -94,6 +94,9 @@ function sparsekpod(X::AbstractImputedMatrix{T}, sparsity::Int, kmpp_flag::Bool 
     # do it on the fly.
     #X_copy[missingindices] = clustMat[missingindices]
     # Write a memory-efficient code for this, or just drop it.
+    # Update imputation
+    X.clusters_stable .= X.clusters
+    X.centers_stable .= X.μ .+ X.centers .* X.σ
     err = zero(T)
     @inbounds for j in 1:p
         for i in 1:n
@@ -105,12 +108,14 @@ function sparsekpod(X::AbstractImputedMatrix{T}, sparsity::Int, kmpp_flag::Bool 
     cluster_vals[:, 1] .= clusts
     i = 1
     for i = 2:maxiter
-        X.centers_stable .= X.μ .+ X.centers .* X.σ
-        #compute_μ_σ!(X)
-        X.clusters_stable .= X.clusters
 
         (tempclusts, tempobj, tempcenters,tempfit)= assign_clustppSparse(X, sparsity, kmpp_flag)
         clusts = tempclusts
+
+        # Update imputation
+        X.clusters_stable .= X.clusters
+        X.centers_stable .= X.μ .+ X.centers .* X.σ
+
         #centers =tempcenters
         append!(fit,tempfit)
         #clustMat = centers[clusts,:]

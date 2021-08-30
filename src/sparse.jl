@@ -19,7 +19,7 @@ enter with an initial guess of the classifications.
 * total sum of squares (TSS)
 """
 function sparsekmeans1(X::AbstractImputedMatrix{T}, sparsity::Int; 
-    normalize::Bool=!X.renormalize) where T <: Real
+    normalize::Bool=!X.renormalize, max_iter=Inf) where T <: Real
 
     n, p = size(X)
     k = classes(X)
@@ -39,6 +39,9 @@ function sparsekmeans1(X::AbstractImputedMatrix{T}, sparsity::Int;
     cnt = 0
 
     while switched # iterate until class assignments stabilize
+        if cnt >= max_iter
+            break
+        end
         get_centers!(X)
         for j = 1:p # compute the sparsity criterion
             X.criterion[j] = 0

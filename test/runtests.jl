@@ -147,7 +147,7 @@ include("ref/sparsekpod.jl")
 
 
         ## The first output argument is the cluster labels, and the rest are not of importance in this example.
-        @time (classout3_,aa_,bb_,cc_,dd_)=SKFR.sparsekpod(IM,sparsity, false, 2)
+        @time (classout3_,_, aa_,bb_,cc_,dd_)=SKFR.sparsekpod(IM,sparsity, false, 2)
         #arisparse3=randindex(classout3_, convert(Array{Int64,1},truelabels))
         #println("ARI of sparsekpod (new): ",arisparse3[1])
 

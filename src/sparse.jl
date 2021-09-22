@@ -19,7 +19,7 @@ enter with an initial guess of the classifications.
 * total sum of squares (TSS)
 """
 function sparsekmeans1(X::AbstractImputedMatrix{T}, sparsity::Int; 
-    normalize::Bool=!X.renormalize, max_iter=Inf) where T <: Real
+    normalize::Bool=!X.renormalize, max_iter=Inf, fast_impute=false) where T <: Real
 
     n, p = size(X)
     k = classes(X)
@@ -32,7 +32,9 @@ function sparsekmeans1(X::AbstractImputedMatrix{T}, sparsity::Int;
             X[:, j] .= zscore(@view(X[:, j]))
         end
     else
-        compute_μ_σ!(X)
+        if !X.fixed_normalization
+            compute_μ_σ!(X)
+        end
     end
     switched = true
     selectedvec = zeros(Int, sparsity)
@@ -46,17 +48,19 @@ function sparsekmeans1(X::AbstractImputedMatrix{T}, sparsity::Int;
         for j = 1:p # compute the sparsity criterion
             X.criterion[j] = 0
             for kk = 1:k
-                X.criterion[j] = X.criterion[j] + X.members[kk] * X.centers[j, kk]^2
+                X.criterion[j] = X.criterion[j] + X.members[kk] * X.centers[j, kk] ^ 2
             end
         end
         # Gather the criterion to the master node
-        # find the (p-s) least informative features and setting them to 0
         J = partialsortperm(X.criterion, 1:sparsity, rev=true)
         nonselected = setdiff(wholevec, J)
-        # TODO: Could be faster the other way...(choose top `sparsity` variables)
         fill!(@view(X.centers[nonselected, :]), zero(T))
         #center[:, J] = zeros(length(J),classes)
         selectedvec .= J
+        if fast_impute
+            X.clusters_stable .= X.clusters
+            X.centers_stable .= X.μ .+ X.centers .* X.σ
+        end
         get_distances_to_center!(X, selectedvec)
         c, switched = get_clusters!(X)
         cnt += 1
@@ -104,7 +108,7 @@ the classifications.
 * total sum of squares (TSS)
 """
 function sparsekmeans2(X::AbstractImputedMatrix{T}, sparsity::Int;
-    normalize::Bool=!X.renormalize) where T <: Real
+    normalize::Bool=!X.renormalize, fast_impute=false) where T <: Real
   
     (n, p) = size(X)
     k = classes(X)
@@ -115,7 +119,9 @@ function sparsekmeans2(X::AbstractImputedMatrix{T}, sparsity::Int;
             X[:, j] .= zscore(@view(X[:, j]))
         end
     else
-        compute_μ_σ!(X)
+        if !X.fixed_normalization
+            compute_μ_σ!(X)
+        end
     end
     switched = true
     while switched # iterate until class assignments stabilize
@@ -130,6 +136,10 @@ function sparsekmeans2(X::AbstractImputedMatrix{T}, sparsity::Int;
             end
         end
         selectedvec_ = sort!(unique(selectedvec[:]))
+        if fast_impute
+            X.clusters_stable .= X.clusters
+            X.centers_stable .= X.μ .+ X.centers .* X.σ
+        end
         get_distances_to_center!(X, selectedvec_)
         _, switched = get_clusters!(X)
     end
@@ -182,5 +192,5 @@ function sparsekmeans_repeat(X::AbstractImputedMatrix{T}, sparsity::Int;
     end
     X.clusters .= X.bestclusters
     X.centers .= X.bestcenters
-    return(X.bestclusters, X.bestcenters, selectedvec, WSS, TSS, fit)
+    return (X.bestclusters, X.bestcenters, selectedvec, WSS, TSS, fit)
 end

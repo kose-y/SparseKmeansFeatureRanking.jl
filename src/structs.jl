@@ -28,6 +28,7 @@ mutable struct ImputedMatrix{T} <: AbstractImputedMatrix{T}
     μ::Vector{T}
     σ::Vector{T}
     renormalize::Bool
+    fixed_normalization::Bool
 end
 
 mutable struct ImputedSnpMatrix{T} <: AbstractImputedMatrix{T}
@@ -46,6 +47,7 @@ mutable struct ImputedSnpMatrix{T} <: AbstractImputedMatrix{T}
     μ::Vector{T}
     σ::Vector{T}
     renormalize::Bool
+    fixed_normalization::Bool
 end
 
 @inline function Base.size(x::AbstractImputedMatrix)
@@ -56,7 +58,7 @@ end
     return size(x.centers, 2)
 end
 
-function ImputedMatrix{T}(data::AbstractMatrix{T}, k::Int; renormalize=true, initclass=true) where {T <: Real}
+function ImputedMatrix{T}(data::AbstractMatrix{T}, k::Int; renormalize=true, initclass=true, fixed_normalization=true) where {T <: Real}
     n, p = size(data)
     clusters = Vector{Int}(undef, n)
     centers = zeros(T, p, k)
@@ -90,7 +92,7 @@ function ImputedMatrix{T}(data::AbstractMatrix{T}, k::Int; renormalize=true, ini
     σ = zeros(T, p)
 
     r = ImputedMatrix{T}(data, clusters, clusters_stable, centers, centers_stable, 
-        bestclusters, bestcenters, centers_tmp, members, criterion, distances, μ, σ, false)
+        bestclusters, bestcenters, centers_tmp, members, criterion, distances, μ, σ, renormalize, fixed_normalization)
     if initclass
         r.clusters = initclass!(r.clusters, r, k)
     end
@@ -102,6 +104,7 @@ function ImputedMatrix{T}(data::AbstractMatrix{T}, k::Int; renormalize=true, ini
 end
 
 function ImputedSnpMatrix{T}(data::SnpArray, k::Int; renormalize=true, initclass=true, 
+        fixed_normalization=true,
         model=ADDITIVE_MODEL) where {T <: Real}
     n, p = size(data)
     clusters = Vector{Int}(undef, n)
@@ -139,7 +142,7 @@ function ImputedSnpMatrix{T}(data::SnpArray, k::Int; renormalize=true, initclass
     σ = ones(T, p)
 
     r = ImputedSnpMatrix{T}(data, model, clusters, clusters_stable, centers, centers_stable, 
-        bestclusters, bestcenters, centers_tmp, members, criterion, distances, μ, σ, false)
+        bestclusters, bestcenters, centers_tmp, members, criterion, distances, μ, σ, renormalize, fixed_normalization)
     if initclass
         initclass!(r.clusters, r, k)
     end

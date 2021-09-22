@@ -63,7 +63,7 @@ TRY TO AVOID ANY ADDITIONAL n x p MATRICES.
 - fit = 1 - sum(WSS) / obj
 - fit of each iteration
 """
-function sparsekpod(X::AbstractImputedMatrix{T}, sparsity::Int, kmpp_flag::Bool = true,
+function sparsekpod(X::AbstractImputedMatrix{T}, sparsity::Int; kmpp_flag::Bool = true,
     maxiter::Int = 50, max_inner_iter::Int = 1) where T <: Real
    
     n, p = size(X)
@@ -138,6 +138,7 @@ function sparsekpod(X::AbstractImputedMatrix{T}, sparsity::Int, kmpp_flag::Bool 
             break
         end
     end
+    X.clusters_stable .= X.clusters
     X.centers_stable .= X.μ .+ X.centers .* X.σ
     return(clusts, selectedvec, cluster_vals[:,1:maxiter],obj_vals[1:maxiter],fit[maxiter],fit[1:maxiter])
 end

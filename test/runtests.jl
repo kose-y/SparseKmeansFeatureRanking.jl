@@ -64,7 +64,7 @@ include("ref/sparsekpod.jl")
                 sum = 0.0
                 for i in 1:cases
                     if IM.clusters[i] == k
-                        sum += transpose(X)[i,j]
+                        sum += IM[i, j]
                     end
                 end 
                 @test sum / cnts ≈ IM.centers[j, k]
@@ -127,7 +127,7 @@ include("ref/sparsekpod.jl")
         init_classes = initclass(copy(X_copy), classes)
         Random.seed!(77)
         y[ CartesianIndices(y)[missingix]]=missings(Float64, length(missingix));
-        @time (classout3,aa,bb,cc,dd)=ref_sparsekpod(copy(y'),classes,sparsity, false, 2)
+        @time (classout3,aa,bb,cc,dd)=ref_sparsekpod(copy(y'),classes,sparsity, true, 20)
         
         #arisparse3=randindex(classout3, convert(Array{Int64,1},truelabels))
         #println("ARI of sparsekpod (ref): ",arisparse3[1])
@@ -141,13 +141,13 @@ include("ref/sparsekpod.jl")
         y = copy(X)
         y[CartesianIndices(y)[missingix]] .= NaN
         y = collect(transpose(y))
-        IM = SKFR.ImputedMatrix{Float64}(y, classes)
+        IM = SKFR.ImputedMatrix{Float64}(y, classes; fixed_normalization=false)
 
         @test all(init_classes .== IM.clusters)
 
 
         ## The first output argument is the cluster labels, and the rest are not of importance in this example.
-        @time (classout3_,_, aa_,bb_,cc_,dd_)=SKFR.sparsekpod(IM,sparsity, false, 2)
+        @time (classout3_,_, aa_,bb_,cc_,dd_)=SKFR.sparsekpod(IM,sparsity; kmpp_flag=true, maxiter=20, max_inner_iter=99999)
         #arisparse3=randindex(classout3_, convert(Array{Int64,1},truelabels))
         #println("ARI of sparsekpod (new): ",arisparse3[1])
 

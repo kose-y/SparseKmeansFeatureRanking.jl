@@ -18,7 +18,8 @@ mutable struct ImputedMatrix{T} <: AbstractImputedMatrix{T}
     clusters::Vector{Int}
     clusters_stable::Vector{Int}
     centers::Matrix{T}
-    centers_stable::Matrix{T}    
+    centers_stable::Matrix{T}  
+    avg::T  
     bestclusters::Vector{Int}
     bestcenters::Matrix{T}
     centers_tmp::Matrix{T}
@@ -38,6 +39,7 @@ mutable struct ImputedSnpMatrix{T} <: AbstractImputedMatrix{T}
     clusters_stable::Vector{Int}
     centers::Matrix{T}
     centers_stable::Matrix{T} 
+    avg::T
     bestclusters::Vector{Int}
     bestcenters::Matrix{T}
     centers_tmp::Matrix{T}
@@ -91,7 +93,7 @@ function ImputedMatrix{T}(data::AbstractMatrix{T}, k::Int; renormalize=true, ini
     μ = zeros(T, p)
     σ = zeros(T, p)
 
-    r = ImputedMatrix{T}(data, clusters, clusters_stable, centers, centers_stable, 
+    r = ImputedMatrix{T}(data, clusters, clusters_stable, centers, centers_stable, avg,
         bestclusters, bestcenters, centers_tmp, members, criterion, distances, μ, σ, renormalize, fixed_normalization)
     if initclass
         r.clusters = initclass!(r.clusters, r, k)
@@ -141,7 +143,7 @@ function ImputedSnpMatrix{T}(data::SnpArray, k::Int; renormalize=true, initclass
     μ = zeros(T, p)
     σ = ones(T, p)
 
-    r = ImputedSnpMatrix{T}(data, model, clusters, clusters_stable, centers, centers_stable, 
+    r = ImputedSnpMatrix{T}(data, model, clusters, clusters_stable, centers, centers_stable, avg,
         bestclusters, bestcenters, centers_tmp, members, criterion, distances, μ, σ, renormalize, fixed_normalization)
     if initclass
         initclass!(r.clusters, r, k)
@@ -154,21 +156,10 @@ function ImputedSnpMatrix{T}(data::SnpArray, k::Int; renormalize=true, initclass
     return r
 end
 
-function reinitialize!(X::AbstractImputedMatrix)
-    @inbounds for j in 1:p
-        for i in 1:n
-            v = SnpArrays.convert(T, getindex(data, i, j), model)
-            if isnan(v)
-                continue
-            end
-            s += v
-            cnt += 1
-        end
-        # avg = s / cnt
-        # centers[j, :] .= avg
-    end
-    avg = s / cnt
-    X.centers_stable .= avg
+function reinitialize!(X::AbstractImputedMatrix{T}) where T
+    n, p = size(X)
+    X.centers_stable .= X.avg
+    # clusters_stable does not matter, as long as this is total mean imputation. 
     k = classes(X)
     initclass!(X.clusters, X, k)
     get_centers!(X)

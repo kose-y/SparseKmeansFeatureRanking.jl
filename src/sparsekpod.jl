@@ -1,12 +1,12 @@
-function assign_clustppSparse(X::AbstractImputedMatrix, sparsity,
-    kmpp_flag= true, max_iter= 20)
+function assign_clustppSparse(X::AbstractImputedMatrix, sparsity; 
+    kmpp_flag= true, max_iter= 20, max_inner_iter = 1)
     n, p = size(X)
     k = classes(X)
     # recompute clusters with new imputation
     get_distances_to_center!(X)
     get_clusters!(X)
     #init_classes= get_classes(copy(X'),copy(init_centers'))
-    (clusts, centerout,selectedvec,WSS,obj) = sparsekmeans1(X, sparsity)
+    (clusts, centerout,selectedvec,WSS,obj) = sparsekmeans1(X, sparsity; max_iter=max_inner_iter, fast_impute=false)
     bestclusts = copy(clusts)
     bestcenters = copy(centerout)
     fit = 1 - (sum(WSS)/obj)
@@ -15,7 +15,7 @@ function assign_clustppSparse(X::AbstractImputedMatrix, sparsity,
     if kmpp_flag == true
         for iter = 1:max_iter
             initclass!(X.clusters, X, k)
-            (newclusts, newcenterout,selectedvec,newWSS,newobj) = sparsekmeans1(X, sparsity)
+            (newclusts, newcenterout,selectedvec,newWSS,newobj) = sparsekmeans1(X, sparsity; max_iter=max_inner_iter,fast_impute=false)
             if newobj < obj
                 obj = newobj
                 bestclusts .= newclusts
@@ -25,7 +25,7 @@ function assign_clustppSparse(X::AbstractImputedMatrix, sparsity,
             end
         end
     end
-    return(bestclusts, obj, bestcenters, fit)
+    return(bestclusts, selectedvec, obj, bestcenters, fit)
 end
    
 # function findMissing(X)
@@ -63,8 +63,8 @@ TRY TO AVOID ANY ADDITIONAL n x p MATRICES.
 - fit = 1 - sum(WSS) / obj
 - fit of each iteration
 """
-function sparsekpod(X::AbstractImputedMatrix{T}, sparsity::Int, kmpp_flag::Bool = true,
-    maxiter::Int = 20) where T <: Real
+function sparsekpod(X::AbstractImputedMatrix{T}, sparsity::Int; kmpp_flag::Bool = true,
+    maxiter::Int = 50, max_inner_iter::Int = 1) where T <: Real
    
     n, p = size(X)
 
@@ -85,7 +85,7 @@ function sparsekpod(X::AbstractImputedMatrix{T}, sparsity::Int, kmpp_flag::Bool 
     # decide on sparsekmeans1 or sparsekmeans2. maybe use an additional argument? 
     # This requires center-to-sample distances. 
 
-    (clusts, centerout,selectedvec,WSS,obj)= sparsekmeans1(X, sparsity)
+    (clusts, centerout,selectedvec,WSS,obj)= sparsekmeans1(X, sparsity; max_iter=max_inner_iter, fast_impute=false)
     # maybe we can do these in-place.
     #centers = copy(centerout')
     append!(fit,1 - (sum(WSS)/obj))
@@ -94,6 +94,9 @@ function sparsekpod(X::AbstractImputedMatrix{T}, sparsity::Int, kmpp_flag::Bool 
     # do it on the fly.
     #X_copy[missingindices] = clustMat[missingindices]
     # Write a memory-efficient code for this, or just drop it.
+    # Update imputation
+    X.clusters_stable .= X.clusters
+    X.centers_stable .= X.μ .+ X.centers .* X.σ
     err = zero(T)
     @inbounds for j in 1:p
         for i in 1:n
@@ -105,12 +108,14 @@ function sparsekpod(X::AbstractImputedMatrix{T}, sparsity::Int, kmpp_flag::Bool 
     cluster_vals[:, 1] .= clusts
     i = 1
     for i = 2:maxiter
-        X.centers_stable .= X.μ .+ X.centers .* X.σ
-        #compute_μ_σ!(X)
-        X.clusters_stable .= X.clusters
 
-        (tempclusts, tempobj, tempcenters,tempfit)= assign_clustppSparse(X, sparsity, kmpp_flag)
+        (tempclusts, selectedvec, tempobj, tempcenters,tempfit)= assign_clustppSparse(X, sparsity; kmpp_flag=kmpp_flag, max_inner_iter=max_inner_iter)
         clusts = tempclusts
+
+        # Update imputation
+        X.clusters_stable .= X.clusters
+        X.centers_stable .= X.μ .+ X.centers .* X.σ
+
         #centers =tempcenters
         append!(fit,tempfit)
         #clustMat = centers[clusts,:]
@@ -129,10 +134,11 @@ function sparsekpod(X::AbstractImputedMatrix{T}, sparsity::Int, kmpp_flag::Bool 
         cluster_vals[:, i] = clusts
         if (all(cluster_vals[:, i] .== cluster_vals[:, i - 1]))
             println("Clusters have converged after $i iterations.")
-            return(clusts, cluster_vals[:, 1:i],obj_vals[1:i],fit[i],fit[1:i])
+            return(clusts, selectedvec, cluster_vals[:, 1:i],obj_vals[1:i],fit[i],fit[1:i])
             break
         end
     end
+    X.clusters_stable .= X.clusters
     X.centers_stable .= X.μ .+ X.centers .* X.σ
-    return(clusts, cluster_vals[:,1:maxiter],obj_vals[1:maxiter],fit[maxiter],fit[1:maxiter])
+    return(clusts, selectedvec, cluster_vals[:,1:maxiter],obj_vals[1:maxiter],fit[maxiter],fit[1:maxiter])
 end

@@ -6,7 +6,7 @@ function assign_clustppSparse(X::AbstractImputedMatrix, sparsity;
     get_distances_to_center!(X)
     get_clusters!(X)
     #init_classes= get_classes(copy(X'),copy(init_centers'))
-    (clusts, centerout,selectedvec,WSS,obj) = sparsekmeans1(X, sparsity; max_iter=max_inner_iter)
+    (clusts, centerout,selectedvec,WSS,obj) = sparsekmeans1(X, sparsity; max_iter=max_inner_iter, fast_impute=false)
     bestclusts = copy(clusts)
     bestcenters = copy(centerout)
     fit = 1 - (sum(WSS)/obj)
@@ -15,7 +15,7 @@ function assign_clustppSparse(X::AbstractImputedMatrix, sparsity;
     if kmpp_flag == true
         for iter = 1:max_iter
             initclass!(X.clusters, X, k)
-            (newclusts, newcenterout,selectedvec,newWSS,newobj) = sparsekmeans1(X, sparsity; max_iter=max_inner_iter)
+            (newclusts, newcenterout,selectedvec,newWSS,newobj) = sparsekmeans1(X, sparsity; max_iter=max_inner_iter,fast_impute=false)
             if newobj < obj
                 obj = newobj
                 bestclusts .= newclusts
@@ -85,7 +85,7 @@ function sparsekpod(X::AbstractImputedMatrix{T}, sparsity::Int; kmpp_flag::Bool 
     # decide on sparsekmeans1 or sparsekmeans2. maybe use an additional argument? 
     # This requires center-to-sample distances. 
 
-    (clusts, centerout,selectedvec,WSS,obj)= sparsekmeans1(X, sparsity; max_iter=max_inner_iter)
+    (clusts, centerout,selectedvec,WSS,obj)= sparsekmeans1(X, sparsity; max_iter=max_inner_iter, fast_impute=false)
     # maybe we can do these in-place.
     #centers = copy(centerout')
     append!(fit,1 - (sum(WSS)/obj))

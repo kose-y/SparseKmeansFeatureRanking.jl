@@ -9,6 +9,7 @@ enter with an initial guess of the classifications.
 
 * `X`: n by p AbstractImputedMatrix
 * `sparsity`: sparsity level (total nonzeros)
+* `fast_impute`: good only if used via `sparsekpod` function. 
 
 # Ouptut: 
 
@@ -19,7 +20,7 @@ enter with an initial guess of the classifications.
 * total sum of squares (TSS)
 """
 function sparsekmeans1(X::AbstractImputedMatrix{T}, sparsity::Int; 
-    normalize::Bool=!X.renormalize, max_iter=Inf, fast_impute=true) where T <: Real
+    normalize::Bool=!X.renormalize, max_iter=Inf, fast_impute=false) where T <: Real
 
     n, p = size(X)
     k = classes(X)
@@ -108,7 +109,7 @@ the classifications.
 * total sum of squares (TSS)
 """
 function sparsekmeans2(X::AbstractImputedMatrix{T}, sparsity::Int;
-    normalize::Bool=!X.renormalize, fast_impute=true) where T <: Real
+    normalize::Bool=!X.renormalize, fast_impute=false) where T <: Real
   
     (n, p) = size(X)
     k = classes(X)

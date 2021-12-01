@@ -207,7 +207,7 @@ function sparsekmeans_path(X::AbstractImputedMatrix{T}, sparsity_list = Vector{I
     bestclusters = Matrix{Int}(undef, n, length(sparsity_list))
     @assert issorted(sparsity_list; rev=true) "sparsity list must be in decreasing order"
     bestclusters, bestcenters, selectedvec, WSS, TSS, fit = sparsekmeans_repeat(X, sparsity_list[1]; 
-        normalize=normalize, ftn = fun, iter = iter, max_inner_iter=max_inner_iter)
+        normalize=normalize, ftn = ftn, iter = iter, max_inner_iter=max_inner_iter)
     push!(selectedvecs, selectedvec)
     bestclusters[:, 1] .= bestclusters
 

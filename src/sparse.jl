@@ -46,12 +46,14 @@ function sparsekmeans1(X::AbstractImputedMatrix{T}, sparsity::Int;
             break
         end
         get_centers!(X)
-        for j = 1:p # compute the sparsity criterion
-            X.criterion[j] = 0
-            for kk = 1:k
-                X.criterion[j] = X.criterion[j] + X.members[kk] * X.centers[j, kk] ^ 2
-            end
-        end
+        # compute the sparsity criterion
+        @tullio (X.criterion)[j] = (X.members)[kk] * (X.centers)[j, kk] ^ 2
+        # for j = 1:p # compute the sparsity criterion
+        #     X.criterion[j] = 0
+        #     for kk = 1:k
+        #         X.criterion[j] = X.criterion[j] + X.members[kk] * X.centers[j, kk] ^ 2
+        #     end
+        # end
         # Gather the criterion to the master node
         J = partialsortperm(X.criterion, 1:sparsity, rev=true)
         nonselected = setdiff(wholevec, J)
@@ -60,17 +62,18 @@ function sparsekmeans1(X::AbstractImputedMatrix{T}, sparsity::Int;
         selectedvec .= J
         if fast_impute
             X.clusters_stable .= X.clusters
-            X.centers_stable .= X.μ .+ X.centers .* X.σ
+            @turbo X.centers_stable .= X.μ .+ X.centers .* X.σ
         end
         get_distances_to_center!(X, selectedvec)
         c, switched = get_clusters!(X)
         cnt += 1
     end
     println("cnt of sparse1:", cnt)
+
     # now calculating the WSS and TSS; used in the permutation test and sparse kpod
     WSSval = zeros(T, k)
-    for j in 1:p
-        @inbounds for i in 1:n
+    @inbounds for j in 1:p
+        for i in 1:n
             kk = X.clusters[i]
             WSSval[kk] += (X[i, j] - X.centers[j, kk]) ^ 2
         end
@@ -194,4 +197,26 @@ function sparsekmeans_repeat(X::AbstractImputedMatrix{T}, sparsity::Int;
     X.clusters .= X.bestclusters
     X.centers .= X.bestcenters
     return (X.bestclusters, X.bestcenters, selectedvec, WSS, TSS, fit)
+end
+
+function sparsekmeans_path(X::AbstractImputedMatrix{T}, sparsity_list = Vector{Int};
+    normalize::Bool=!X.renormalize, ftn = sparsekmeans1, iter::Int = 5, max_inner_iter=20) where T <: Real
+    n, p = size(X)
+    k = classes(X)
+    selectedvecs = Vector{Int}[]
+    bestclusters = Matrix{Int}(undef, n, length(sparsity_list))
+    @assert issorted(sparsity_list; rev=true) "sparsity list must be in decreasing order"
+    bestclusters, bestcenters, selectedvec, WSS, TSS, fit = sparsekmeans_repeat(X, sparsity_list[1]; 
+        normalize=normalize, ftn = fun, iter = iter, max_inner_iter=max_inner_iter)
+    push!(selectedvecs, selectedvec)
+    bestclusters[:, 1] .= bestclusters
+
+    for i in 2:length(sparsity_list)
+        (newclusts, _, newselectedvec, _, _) = ftn(X, sparsity_list[i]; 
+            normalize=!X.renormalize, max_iter=max_inner_iter, fast_impute=true)
+        push!(selectedvecs, newselectedvec)
+        bestclusters[:, i] .= newclusts
+    end
+
+    return (bestclusters, selectedvecs)
 end

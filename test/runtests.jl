@@ -6,6 +6,7 @@ using StatsBase
 using Statistics
 using Random
 using Missings
+using BenchmarkTools
 include("ref/k_generalized_source.jl")
 include("ref/sparse.jl")
 include("ref/sparsekpod.jl")
@@ -70,7 +71,7 @@ include("ref/sparsekpod.jl")
                 @test sum / cnts ≈ IM.centers[j, k]
             end
         end
-
+        # @btime (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1($X1, $sparsity);
         @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(X1, sparsity);
         @time (classout2_, center2_, selectedvec2_, WSSval2_, TSSval2_) = SKFR.sparsekmeans2(X2, sparsity);
 
@@ -181,13 +182,14 @@ include("ref/sparsekpod.jl")
     @testset "SnpArray" begin
         EUR = SnpArray(SnpArrays.datadir("EUR_subset.bed")) # No missing
         EURtrue = convert(Matrix{Float64}, EUR, model=ADDITIVE_MODEL, center=false, scale=false)
+        nclusters = 5
         Random.seed!(16962)
-        ISM = SKFR.ImputedSnpMatrix{Float64}(EUR, 3)
+        ISM = SKFR.ImputedSnpMatrix{Float64}(EUR, nclusters)
         Random.seed!(16962)
-        IM = SKFR.ImputedMatrix{Float64}(EURtrue, 3)
+        IM = SKFR.ImputedMatrix{Float64}(EURtrue, nclusters)
         @time (classout1, center1, selectedvec1, WSSval1, TSSval1) = SKFR.sparsekmeans1(IM, 30);
-        @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30);
-        
+        @btime (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1($ISM, 30);
+        @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30);        
         @test classout1 == classout1_
         @test all(center1 .≈ center1_)
         @test all(selectedvec1 .== selectedvec1_)

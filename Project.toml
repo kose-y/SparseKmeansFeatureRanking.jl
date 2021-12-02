@@ -17,6 +17,7 @@ Tullio = "bc48ee85-29a4-5162-ae0b-a64e1601d4bc"
 
 [compat]
 Distances = "0.10"
+LoopVectorization = "0.12"
 Missings = "1"
 SnpArrays = "0.3"
 StatsBase = "0.33"

@@ -16,6 +16,7 @@ StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 Tullio = "bc48ee85-29a4-5162-ae0b-a64e1601d4bc"
 
 [compat]
+BenchmarkTools = "1"
 Distances = "0.10"
 Missings = "1"
 SnpArrays = "0.3"

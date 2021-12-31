@@ -240,11 +240,18 @@ function get_clusters!(X::AbstractImputedMatrix{T}) where T
     n, p = size(X)
     k = size(X.centers, 2)
     switched = false
-    for i = 1:n
+    @inbounds for i = 1:n
         kk = argmin(@view(X.distances[i, :])) # class of closest center
         if kk != X.clusters[i]
             switched = true
+            k_prev = X.clusters[i]
             X.clusters[i] = kk
+            X.members[kk] += 1
+            X.members[k_prev] -= 1
+            for j in 1:p
+                X.centers_tmp[j, kk] = X.centers_tmp[j, kk] + (X[i, j]- X.centers_tmp[j, kk]) / X.members[kk]
+                X.centers_tmp[j, k_prev] = X.centers_tmp[j, k_prev] - (X[i, j] - X.centers_tmp[j, k_prev]) / X.members[k_prev]
+            end
         end
     end
     return (X.clusters, switched)
@@ -263,7 +270,7 @@ function get_centers!(X::AbstractImputedMatrix{T}) where T <: Real
     @assert size(X.centers, 1) == p
     fill!(X.centers_tmp, zero(T))
     fill!(X.members, zero(eltype(X.members)))
-    @inbounds for j in 1:p 
+    @inbounds for j in 1:p
         for i in 1:n
             c = X.clusters[i]
             X.centers_tmp[j, c] = X.centers_tmp[j, c] + X[i, j]
@@ -278,6 +285,7 @@ function get_centers!(X::AbstractImputedMatrix{T}) where T <: Real
             X.centers[:, kk] .= @view(X.centers_tmp[:, kk]) ./ X.members[kk]
         end
     end
+    X.centers_tmp .= X.centers
     X.centers
 end
 
@@ -358,6 +366,7 @@ function get_centers!(X::ImputedSnpMatrix{T}) where T <: Real
             X.centers[:, kk] .= @view(X.centers_tmp[:, kk]) ./ X.members[kk]
         end
     end
+    X.centers_tmp .= X.centers
     X.centers
 end
 

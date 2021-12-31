@@ -40,13 +40,16 @@ function sparsekmeans1(X::AbstractImputedMatrix{T}, sparsity::Int;
     switched = true
     selectedvec = zeros(Int, sparsity)
     cnt = 0
-
+    get_centers!(X)
     while switched # iterate until class assignments stabilize
         if cnt >= max_iter
             break
         end
-        get_centers!(X)
+        # if cnt > 0
+        #     get_centers!(X)
+        # end
         # compute the sparsity criterion
+        X.centers .= X.centers_tmp
         @tullio (X.criterion)[j] = (X.members)[kk] * (X.centers)[j, kk] ^ 2
         # for j = 1:p # compute the sparsity criterion
         #     X.criterion[j] = 0
@@ -128,9 +131,10 @@ function sparsekmeans2(X::AbstractImputedMatrix{T}, sparsity::Int;
         end
     end
     switched = true
+    get_centers!(X)
     while switched # iterate until class assignments stabilize
-
-        get_centers!(X)
+        X.centers .= X.centers_tmp
+        # get_centers!(X, selectedvec_)
         for kk = 1:k 
             if X.members[kk] > 0 # set the smallest center components to 0
                 J = partialsortperm(X.centers[:, kk] .^ 2 .* X.members[kk], 1:sparsity, rev = true, by = abs)

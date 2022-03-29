@@ -1,7 +1,8 @@
 module SKFR
 
 using Base: stackframe_function_color
-using StatsBase, Distances, DelimitedFiles
+using StatsBase, Distances, DelimitedFiles, FLoops
+using MicroCollections: SingletonDict
 using SnpArrays
 using LoopVectorization, Tullio
 include("structs.jl")

@@ -64,8 +64,8 @@ function sparsekmeans1(X::AbstractImputedMatrix{T}, sparsity::Int;
         #center[:, J] = zeros(length(J),classes)
         selectedvec .= J
         if fast_impute
-            X.clusters_stable .= X.clusters
-            @turbo X.centers_stable .= X.μ .+ X.centers .* X.σ
+            @tturbo X.clusters_stable .= X.clusters
+            @tturbo X.centers_stable .= X.μ .+ X.centers .* X.σ
         end
         get_distances_to_center!(X, selectedvec)
         c, switched = get_clusters!(X)
@@ -74,21 +74,37 @@ function sparsekmeans1(X::AbstractImputedMatrix{T}, sparsity::Int;
     println("cnt of sparse1:", cnt)
 
     # now calculating the WSS and TSS; used in the permutation test and sparse kpod
-    WSSval = zeros(T, k)
-    @inbounds for j in 1:p
-        for i in 1:n
-            kk = X.clusters[i]
-            WSSval[kk] += (X[i, j] - X.centers[j, kk]) ^ 2
-        end
-    end
 
-    TSSval = zero(T)
-    @inbounds for j in 1:p
-        m = mean(@view(X[:, j]))
-        for i in 1:n
-            TSSval += (X[i, j] - m) ^ 2
+    WSSval = zeros(T, k)
+    @floop for j in 1:p, i in 1:n
+        kk = X.clusters[i]
+        obs = SingletonDict(kk => (i, j))
+        @reduce() do (r = WSSval; obs)
+            for (kk, v) in pairs(obs)
+                if !(typeof(v) <: Tuple)
+                    continue
+                end
+                i, j = v
+                r[kk] += (X[i, j] - X.centers[j, kk]) ^ 2
+            end
         end
     end
+    println(WSSval)
+
+    @floop for j in 1:p
+        m = mean(@view(X[:, j]))
+        @reduce() do (TSSval = zero(T); j)
+            s = zero(T)
+            if typeof(j) <: Integer
+                for i in 1:n
+                    @inbounds s += (X[i, j] - m) ^ 2
+                end
+                TSSval += s
+            end
+        end
+    end
+    println(TSSval)
+
     return (X.clusters, X.centers, selectedvec, WSSval, TSSval)
 end
 
@@ -145,30 +161,43 @@ function sparsekmeans2(X::AbstractImputedMatrix{T}, sparsity::Int;
         end
         selectedvec_ = sort!(unique(selectedvec[:]))
         if fast_impute
-            X.clusters_stable .= X.clusters
-            X.centers_stable .= X.μ .+ X.centers .* X.σ
+            @tturbo X.clusters_stable .= X.clusters
+            @tturbo X.centers_stable .= X.μ .+ X.centers .* X.σ
         end
         get_distances_to_center!(X, selectedvec_)
         _, switched = get_clusters!(X)
     end
 
     WSSval = zeros(T, k)
-    for j in 1:p
-        @inbounds for i in 1:n
-            kk = X.clusters[i]
-            WSSval[kk] += (X[i, j] - X.centers[j, kk]) ^ 2
+    @floop for j in 1:p, i in 1:n
+        kk = X.clusters[i]
+        obs = SingletonDict(kk => (i, j))
+        @reduce() do (r = WSSval; obs)
+            for (kk, v) in pairs(obs)
+                if !(typeof(v) <: Tuple)
+                    continue
+                end
+                i, j = v
+                r[kk] += (X[i, j] - X.centers[j, kk]) ^ 2
+            end
         end
     end
+    println(WSSval)
 
-    TSSval = zero(T)
-    tmp = zero(T)
-    @inbounds for j in 1:p
+    @floop for j in 1:p
         m = mean(@view(X[:, j]))
-        for i in 1:n
-            tmp = (X[i, j] - m) ^ 2
-            TSSval += tmp
+        @reduce() do (TSSval = zero(T); j)
+            s = zero(T)
+            if typeof(j) <: Integer
+                for i in 1:n
+                    @inbounds s += (X[i, j] - m) ^ 2
+                end
+                TSSval += s
+            end
         end
     end
+    println(TSSval)
+
     return (X.clusters, X.centers,selectedvec,WSSval,TSSval)
 end
 

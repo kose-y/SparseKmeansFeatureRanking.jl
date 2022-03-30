@@ -71,17 +71,33 @@ function ImputedMatrix{T}(data::AbstractMatrix{T}, k::Int; renormalize=true, ini
     # set up mean imputation
     fill!(clusters, 1)
     clusters_stable = copy(clusters)
-    s = zero(T)
-    cnt = 0
-    @inbounds for j in 1:p
-        for i in 1:n
-            if isnan(data[i, j])
-                continue
+    s_ = zeros(T, nthreads())
+    cnt_ = zeros(Int, nthreads())
+    @threads for t in 1:nthreads()
+        j = t 
+        while j <= p
+            for i in 1:n
+                if isnan(data[i, j])
+                    continue
+                end
+                s_[t] += data[i, j]
+                cnt_[t] += 1
             end
-            s += data[i, j]
-            cnt += 1
+            j += nthreads()
         end
     end
+    s = sum(s_)
+    cnt = sum(cnt_)
+
+    # @inbounds for j in 1:p
+    #     for i in 1:n
+    #         if isnan(data[i, j])
+    #             continue
+    #         end
+    #         s += data[i, j]
+    #         cnt += 1
+    #     end
+    # end
     avg = s / cnt
     centers .= avg
     centers_stable .= centers
@@ -118,20 +134,36 @@ function ImputedSnpMatrix{T}(data::SnpArray, k::Int; renormalize=true, initclass
     # set up mean imputation
     fill!(clusters, 1)
     clusters_stable = copy(clusters)
-    s = zero(T)
-    cnt = 0
-    @inbounds for j in 1:p
-        for i in 1:n
-            v = SnpArrays.convert(T, getindex(data, i, j), model)
-            if isnan(v)
-                continue
+    s_ = zeros(T, nthreads())
+    cnt_ = zeros(Int, nthreads())
+    @threads for t in 1:nthreads()
+        j = t 
+        while j <= p
+            for i in 1:n
+                v = SnpArrays.convert(T, getindex(data, i, j), model)
+                if isnan(v)
+                    continue
+                end
+                s_[t] += v
+                cnt_[t] += 1
             end
-            s += v
-            cnt += 1
+            j += nthreads()
         end
-        # avg = s / cnt
-        # centers[j, :] .= avg
     end
+    s = sum(s_)
+    cnt = sum(cnt_)
+    # @inbounds for j in 1:p
+    #     for i in 1:n
+    #         v = SnpArrays.convert(T, getindex(data, i, j), model)
+    #         if isnan(v)
+    #             continue
+    #         end
+    #         s += v
+    #         cnt += 1
+    #     end
+    #     # avg = s / cnt
+    #     # centers[j, :] .= avg
+    # end
     avg = s / cnt
     centers .= avg
     centers_stable .= centers

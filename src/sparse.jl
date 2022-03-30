@@ -75,35 +75,32 @@ function sparsekmeans1(X::AbstractImputedMatrix{T}, sparsity::Int;
 
     # now calculating the WSS and TSS; used in the permutation test and sparse kpod
 
-    WSSval = zeros(T, k)
-    @floop for j in 1:p, i in 1:n
-        kk = X.clusters[i]
-        obs = SingletonDict(kk => (i, j))
-        @reduce() do (r = WSSval; obs)
-            for (kk, v) in pairs(obs)
-                if !(typeof(v) <: Tuple)
-                    continue
-                end
-                i, j = v
-                r[kk] += (X[i, j] - X.centers[j, kk]) ^ 2
+    nth = nthreads()
+    WSSval = zeros(T, k, nth)
+    @threads for t in 1:nth
+        j = t
+        while j <= p
+            for i in 1:n
+                kk = X.clusters[i]
+                @inbounds WSSval[kk, t] += (X[i, j] - X.centers[j, kk]) ^ 2
             end
+            j += nth
         end
     end
-    println(WSSval)
+    WSSval = sum(WSSval; dims=2)[:]
 
-    @floop for j in 1:p
-        m = mean(@view(X[:, j]))
-        @reduce() do (TSSval = zero(T); j)
-            s = zero(T)
-            if typeof(j) <: Integer
-                for i in 1:n
-                    @inbounds s += (X[i, j] - m) ^ 2
-                end
-                TSSval += s
+    TSSparts = zeros(T, nth)
+    @threads for t in 1:nth
+        j = t
+        while j <= p
+            m = mean(@view(X[:, j]))
+            for i in 1:n
+                @inbounds TSSparts[t] += (X[i, j] - m) ^ 2
             end
+            j += nth
         end
     end
-    println(TSSval)
+    TSSval = sum(TSSparts)
 
     return (X.clusters, X.centers, selectedvec, WSSval, TSSval)
 end
@@ -168,35 +165,32 @@ function sparsekmeans2(X::AbstractImputedMatrix{T}, sparsity::Int;
         _, switched = get_clusters!(X)
     end
 
-    WSSval = zeros(T, k)
-    @floop for j in 1:p, i in 1:n
-        kk = X.clusters[i]
-        obs = SingletonDict(kk => (i, j))
-        @reduce() do (r = WSSval; obs)
-            for (kk, v) in pairs(obs)
-                if !(typeof(v) <: Tuple)
-                    continue
-                end
-                i, j = v
-                r[kk] += (X[i, j] - X.centers[j, kk]) ^ 2
+    nth = nthreads()
+    WSSval = zeros(T, k, nth)
+    @threads for t in 1:nth
+        j = t
+        while j <= p
+            for i in 1:n
+                kk = X.clusters[i]
+                @inbounds WSSval[kk, t] += (X[i, j] - X.centers[j, kk]) ^ 2
             end
+            j += nth
         end
     end
-    println(WSSval)
+    WSSval = sum(WSSval; dims=2)[:]
 
-    @floop for j in 1:p
-        m = mean(@view(X[:, j]))
-        @reduce() do (TSSval = zero(T); j)
-            s = zero(T)
-            if typeof(j) <: Integer
-                for i in 1:n
-                    @inbounds s += (X[i, j] - m) ^ 2
-                end
-                TSSval += s
+    TSSparts = zeros(T, nth)
+    @threads for t in 1:nth
+        j = t
+        while j <= p
+            m = mean(@view(X[:, j]))
+            for i in 1:n
+                @inbounds TSSparts[t] += (X[i, j] - m) ^ 2
             end
+            j += nth
         end
     end
-    println(TSSval)
+    TSSval = sum(TSSparts)
 
     return (X.clusters, X.centers,selectedvec,WSSval,TSSval)
 end

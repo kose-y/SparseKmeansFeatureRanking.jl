@@ -179,20 +179,27 @@ end
 
 # end
 
-# @testset "SnpArray" begin
-#     EUR = SnpArray(SnpArrays.datadir("EUR_subset.bed")) # No missing
-#     EURtrue = convert(Matrix{Float64}, EUR, model=ADDITIVE_MODEL, center=false, scale=false)
-#     nclusters = 3
-#     Random.seed!(765)
-#     ISM = SKFR.ImputedSnpMatrix{Float64}(EUR, nclusters)
-#     Random.seed!(765)
-#     IM = SKFR.ImputedMatrix{Float64}(EURtrue, nclusters)
-#     @time (classout1, center1, selectedvec1, WSSval1, TSSval1) = SKFR.sparsekmeans1(IM, 30);
-#     # @btime (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1($ISM, 30);
-#     @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30);        
-#     @test classout1 == classout1_
-#     @test all(center1 .≈ center1_)
-#     @test all(selectedvec1 .== selectedvec1_)
-#     @test WSSval1 ≈ WSSval1_
-#     @test TSSval1 ≈ TSSval1_
-# end
+@testset "SnpArray" begin
+    EUR = SnpArray(SnpArrays.datadir("EUR_subset.bed")) # No missing
+    EURtrue = convert(Matrix{Float64}, EUR, model=ADDITIVE_MODEL, center=false, scale=false)
+    nclusters = 3
+    Random.seed!(765)
+    ISM = SKFR.ImputedSnpMatrix{Float64}(EUR, nclusters)
+    Random.seed!(765)
+    IM = SKFR.ImputedMatrix{Float64}(EURtrue, nclusters)
+    @time (classout1, center1, selectedvec1, WSSval1, TSSval1) = SKFR.sparsekmeans1(IM, 30);
+    # @btime (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1($ISM, 30);
+    @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30);        
+    @test classout1 == classout1_
+    @test all(center1 .≈ center1_)
+    @test all(selectedvec1 .== selectedvec1_)
+    @test WSSval1 ≈ WSSval1_
+    @test TSSval1 ≈ TSSval1_
+
+    # @btime begin
+    #     Random.seed!(765)
+    #     ISM = SKFR.ImputedSnpMatrix{Float64}($EUR, $nclusters)
+    #     (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30);  
+    # end
+
+end

@@ -121,27 +121,31 @@ function compute_μ_σ!(A::AbstractImputedMatrix{T}) where T
     n, p = size(A)
     A.μ .= zero(T)
     A.σ .= one(T)
-    @inbounds for j in 1:p
-        if !A.fixed_normalization
-            A.μ[j], A.σ[j] = StatsBase.mean_and_std(@view A[:, j])
-        else
-            m = zero(T)
-            m2 = zero(T)
-            cnt = 0
-            for i in 1:n
-                v = getindex_raw(A, i, j)
-                if isnan(v)
-                    kk = A.clusters[i]
-                    v = A.centers_stable[j, kk] * A.σ[j] + A.μ[j]
+    @threads for t in 1:nthreads()
+        j = t
+        @inbounds while j <= p
+            if !A.fixed_normalization
+                A.μ[j], A.σ[j] = StatsBase.mean_and_std(@view A[:, j])
+            else
+                m = zero(T)
+                m2 = zero(T)
+                cnt = 0
+                for i in 1:n
+                    v = getindex_raw(A, i, j)
+                    if isnan(v)
+                        kk = A.clusters[i]
+                        v = A.centers_stable[j, kk] * A.σ[j] + A.μ[j]
+                    end
+                    m += v
+                    m2 += v ^ 2
+                    cnt += 1
                 end
-                m += v
-                m2 += v ^ 2
-                cnt += 1
+                m /= cnt
+                m2 /= cnt
+                A.μ[j] = m
+                A.σ[j] = sqrt((m2 - m ^ 2) * cnt / (cnt - 1))
             end
-            m /= cnt
-            m2 /= cnt
-            A.μ[j] = m
-            A.σ[j] = sqrt((m2 - m ^ 2) * cnt / (cnt - 1))
+            j += nthreads()
         end
     end
 end
@@ -150,25 +154,29 @@ function compute_μ_σ!(A::ImputedSnpMatrix{T}) where T
     n, p = size(A)
     A.μ .= zero(T)
     A.σ .= one(T)
-    @inbounds for j in 1:p
-        if !A.fixed_normalization
-            A.μ[j], A.σ[j] = StatsBase.mean_and_std(@view A[:, j])
-        else
-            m = zero(T)
-            m2 = zero(T)
-            cnt = 0
-            for i in 1:n
-                v = SnpArrays.convert(T, getindex(A.data, i, j), A.model)
-                if !isnan(v)
-                    m += v
-                    m2 += v ^ 2
-                    cnt += 1
+    @threads for t in 1:nthreads()
+        j = t
+        @inbounds while j <= p
+            if !A.fixed_normalization
+                A.μ[j], A.σ[j] = StatsBase.mean_and_std(@view A[:, j])
+            else
+                m = zero(T)
+                m2 = zero(T)
+                cnt = 0
+                for i in 1:n
+                    v = SnpArrays.convert(T, getindex(A.data, i, j), A.model)
+                    if !isnan(v)
+                        m += v
+                        m2 += v ^ 2
+                        cnt += 1
+                    end
                 end
+                m /= cnt
+                m2 /= cnt
+                A.μ[j] = m
+                A.σ[j] = sqrt((m2 - m ^ 2) * cnt / (cnt - 1))
             end
-            m /= cnt
-            m2 /= cnt
-            A.μ[j] = m
-            A.σ[j] = sqrt((m2 - m ^ 2) * cnt / (cnt - 1))
+            j += nthreads()
         end
     end
 end
@@ -179,9 +187,14 @@ function get_distances_to_center!(X::AbstractImputedMatrix{T}, selectedvec::Abst
     k = size(X.centers, 2)
     fill!(X.distances, zero(T))
     for kk in 1:k
-        for j in selectedvec
-            @inbounds @fastmath @simd for i in 1:n
-                X.distances[i, kk] = X.distances[i, kk] + (X[i, j] - X.centers[j, kk])^2
+        @threads for t in 1:nthreads()
+            jj = t
+            @inbounds while jj <= length(selectedvec)
+                j = selectedvec[jj]
+                @fastmath @simd for i in 1:n
+                    X.distances[i, kk] = X.distances[i, kk] + (X[i, j] - X.centers[j, kk])^2
+                end
+                jj += nthreads()
             end
         end
     end
@@ -198,8 +211,7 @@ function get_distances_to_center!(X::ImputedMatrix{T}, selectedvec::AbstractVect
     k = size(X.centers, 2)
     fill!(X.distances, zero(T))
     @assert X.renormalize "X.renormalize should be true"
-
-    @tullio X.distances[i, kk] = begin
+    @tullio X.distances[i, kk] = @inbounds begin
         v = X.data[i, selectedvec[j]]
         nanv = isnan(v)
         v = nanv * X.centers_stable[selectedvec[j], X.clusters_stable[i]] + !nanv * v
@@ -220,15 +232,24 @@ function get_distances_to_center!(X::ImputedSnpMatrix{T}, selectedvec::AbstractV
     k = size(X.centers, 2)
     fill!(X.distances, zero(T))
     @assert X.renormalize "X.renormalize should be true"
-    @tullio X.distances[i, kk] = begin
-        ip3 = i + 3
-        v = ((X.data.data)[ip3 >> 2, selectedvec[j]] >> ((ip3 & 0x03) << 1)) & 0x03
-        nanv = (v == 0x01)
-        v = (v > 0x01) ? T(v - 0x01) : T(v)
-        v = nanv * X.centers_stable[selectedvec[j], X.clusters_stable[i]] + !nanv * v
-        v = (v - X.μ[selectedvec[j]]) / ((X.σ[selectedvec[j]] < eps()) + X.σ[selectedvec[j]])
-        (v - X.centers[selectedvec[j], kk]) ^ 2
+
+    @threads for t in 1:nthreads()
+        jj = t
+        while jj <= length(selectedvec)
+            j = selectedvec[jj]
+            @turbo for kk in 1:k, i in 1:n
+                ip3 = i + 3
+                v = ((X.data.data)[ip3 >> 2, j] >> ((ip3 & 0x03) << 1)) & 0x03
+                nanv = (v == 0x01)
+                v = (v > 0x01) ? T(v - 0x01) : T(v)
+                v = nanv * X.centers_stable[j, X.clusters_stable[i]] + !nanv * v
+                v = (v - X.μ[j]) / ((X.σ[j] < eps()) + X.σ[j])
+                X.distances[i, kk] += (v - X.centers[j, kk]) ^ 2
+            end
+            jj += nthreads()
+        end
     end
+    
     @tullio X.distances[idx] = sqrt(X.distances[idx])
     X.distances
 end
@@ -248,10 +269,18 @@ function get_clusters!(X::AbstractImputedMatrix{T}) where T
             X.clusters[i] = kk
             X.members[kk] += 1
             X.members[k_prev] -= 1
-            for j in 1:p
-                X.centers_tmp[j, kk] = X.centers_tmp[j, kk] + (X[i, j]- X.centers_tmp[j, kk]) / X.members[kk]
-                X.centers_tmp[j, k_prev] = X.centers_tmp[j, k_prev] - (X[i, j] - X.centers_tmp[j, k_prev]) / X.members[k_prev]
+            @threads for t in 1:nthreads()
+                j = t
+                while j <= p
+                    X.centers_tmp[j, kk] = X.centers_tmp[j, kk] + (X[i, j]- X.centers_tmp[j, kk]) / X.members[kk]
+                    X.centers_tmp[j, k_prev] = X.centers_tmp[j, k_prev] - (X[i, j] - X.centers_tmp[j, k_prev]) / X.members[k_prev]      
+                    j += nthreads()
+                end
             end
+            # for j in 1:p
+            #     X.centers_tmp[j, kk] = X.centers_tmp[j, kk] + (X[i, j]- X.centers_tmp[j, kk]) / X.members[kk]
+            #     X.centers_tmp[j, k_prev] = X.centers_tmp[j, k_prev] - (X[i, j] - X.centers_tmp[j, k_prev]) / X.members[k_prev]
+            # end
         end
     end
     return (X.clusters, switched)
@@ -270,10 +299,14 @@ function get_centers!(X::AbstractImputedMatrix{T}) where T <: Real
     @assert size(X.centers, 1) == p
     fill!(X.centers_tmp, zero(T))
     fill!(X.members, zero(eltype(X.members)))
-    @inbounds for j in 1:p
-        for i in 1:n
-            c = X.clusters[i]
-            X.centers_tmp[j, c] = X.centers_tmp[j, c] + X[i, j]
+    @threads for t in 1:nthreads()
+        j = t
+        while j <= p
+            for i in 1:n
+                c = X.clusters[i]
+                X.centers_tmp[j, c] = X.centers_tmp[j, c] + X[i, j]
+            end
+            j += nthreads()
         end
     end
     @inbounds for i in 1:n
@@ -323,7 +356,7 @@ function get_centers!(X::ImputedSnpMatrix{T}) where T <: Real
     fill!(X.centers_tmp, zero(T))
     fill!(X.members, zero(eltype(X.members)))
 
-    @turbo for j in 1:size(X.centers_tmp, 1), i in 1:length(X.clusters)
+    @tturbo for j in 1:size(X.centers_tmp, 1), i in 1:length(X.clusters)
         ip3 = i + 3
         v = ((X.data.data)[ip3 >> 2, j] >> ((ip3 & 0x03) << 1)) & 0x03
         nanv = (v == 0x01)

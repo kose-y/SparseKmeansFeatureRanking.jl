@@ -122,12 +122,13 @@ function get_classes(X, center)
 end
 
 # kmeans plusplus initialization for classes, modified from Clustering.jl
-function initclass(X, k::Int) 
+function initclass(X, k::Int; rng=Random.GLOBAL_RNG)
   points = size(X, 2)
   iseeds = zeros(Int, k)
   class = zeros(Int, points)
-  p = rand(1:points)
+  p = rand(rng, 1:points)
   iseeds[1] = p
+  println(p)
   if k > 1
     mincosts = Distances.colwise(Euclidean(), X, view(X,:,p))
     mincosts[p] = 0
@@ -135,7 +136,8 @@ function initclass(X, k::Int)
 # Pick remaining seeds with a chance proportional to mincosts.
     tmpcosts = zeros(points)
     for j = 2:k
-      p = wsample(1:points, mincosts)
+      p = wsample(rng, 1:points, mincosts)
+      println(p)
       iseeds[j] = p
       c = view(X,:,p)
       Distances.colwise!(tmpcosts, Euclidean(), X, view(X,:,p))

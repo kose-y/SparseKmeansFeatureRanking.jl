@@ -186,22 +186,22 @@ function get_distances_to_center!(X::AbstractImputedMatrix{T}, selectedvec::Abst
     n, p = size(X)
     k = size(X.centers, 2)
     fill!(X.distances, zero(T))
-    for kk in 1:k
-        @threads for t in 1:nthreads()
-            jj = t
-            @inbounds while jj <= length(selectedvec)
-                j = selectedvec[jj]
-                @fastmath @simd for i in 1:n
-                    X.distances[i, kk] = X.distances[i, kk] + (X[i, j] - X.centers[j, kk])^2
+    fill!(X.distances_tmp, zero(T))
+    @threads for t in 1:nthreads()
+        jj = t
+        while jj <= length(selectedvec)
+            j = selectedvec[jj]
+            for kk in 1:k
+                for i in 1:n
+                    j = selectedvec[jj]
+                    @inbounds X.distances_tmp[i, kk, t] += (X[i, j] - X.centers[j, kk])^2
                 end
-                jj += nthreads()
             end
+            jj += nthreads()
         end
     end
-    @tullio X.distances[idx] = sqrt(X.distances[idx])
-    # @inbounds for idx in eachindex(X.distances)
-    #     X.distances[idx] = sqrt(X.distances[idx])
-    # end
+    @tullio X.distances[i, kk] = X.distances_tmp[i, kk, t]
+    @tullio X.distances[i, kk] = sqrt(X.distances[i, kk])
     X.distances
 end
 
@@ -218,11 +218,7 @@ function get_distances_to_center!(X::ImputedMatrix{T}, selectedvec::AbstractVect
         v = (v - X.μ[selectedvec[j]]) / ((X.σ[selectedvec[j]] < eps()) + X.σ[selectedvec[j]])
         (v - X.centers[selectedvec[j], kk]) ^ 2
     end 
-
-    @tullio X.distances[idx] = sqrt(X.distances[idx])
-    # @inbounds for idx in eachindex(X.distances)
-    #     X.distances[idx] = sqrt(X.distances[idx])
-    # end
+    @tullio X.distances[i, kk] = sqrt(X.distances[i, kk])
     X.distances
 end
 
@@ -232,7 +228,7 @@ function get_distances_to_center!(X::ImputedSnpMatrix{T}, selectedvec::AbstractV
     k = size(X.centers, 2)
     fill!(X.distances, zero(T))
     @assert X.renormalize "X.renormalize should be true"
-
+    fill!(X.distances_tmp, zero(T))
     @threads for t in 1:nthreads()
         jj = t
         while jj <= length(selectedvec)
@@ -244,13 +240,13 @@ function get_distances_to_center!(X::ImputedSnpMatrix{T}, selectedvec::AbstractV
                 v = (v > 0x01) ? T(v - 0x01) : T(v)
                 v = nanv * X.centers_stable[j, X.clusters_stable[i]] + !nanv * v
                 v = (v - X.μ[j]) / ((X.σ[j] < eps()) + X.σ[j])
-                X.distances[i, kk] += (v - X.centers[j, kk]) ^ 2
+                X.distances_tmp[i, kk, t] += (v - X.centers[j, kk]) ^ 2
             end
             jj += nthreads()
         end
     end
-    
-    @tullio X.distances[idx] = sqrt(X.distances[idx])
+    @tullio X.distances[i, kk] = X.distances_tmp[i, kk, t]
+    @tullio X.distances[i, kk] = sqrt(X.distances[i, kk])
     X.distances
 end
 
@@ -272,8 +268,13 @@ function get_clusters!(X::AbstractImputedMatrix{T}) where T
             @threads for t in 1:nthreads()
                 j = t
                 while j <= p
+                    @assert X.members[kk] > 0
                     X.centers_tmp[j, kk] = X.centers_tmp[j, kk] + (X[i, j]- X.centers_tmp[j, kk]) / X.members[kk]
-                    X.centers_tmp[j, k_prev] = X.centers_tmp[j, k_prev] - (X[i, j] - X.centers_tmp[j, k_prev]) / X.members[k_prev]      
+                    if X.members[k_prev] == 0
+                        X.centers_tmp[j, k_prev] = zero(T)
+                    else
+                        X.centers_tmp[j, k_prev] = X.centers_tmp[j, k_prev] - (X[i, j] - X.centers_tmp[j, k_prev]) / X.members[k_prev]
+                    end      
                     j += nthreads()
                 end
             end
@@ -406,17 +407,31 @@ end
 """
 Distances from row s. 
 """
-function dists_from_single_row!(dists::Vector{T}, X::AbstractMatrix{T}, s::Int) where T
+function dists_from_single_row!(dists::Matrix{T}, X::AbstractMatrix{T}, s::Int) where T
     n, p = size(X)
-    @assert length(dists) == n
+    # @assert length(dists) == n
     fill!(dists, zero(T))
-    @inbounds for j in 1:p
-        for i in 1:n
-            dists[i] += (X[i, j] - X[s, j]) ^ 2
+    @threads for t in 1:nthreads()
+        j = t
+        @inbounds while j <= p
+            for i in 1:n
+                dists[i, t] += (X[i, j] - X[s, j]) ^ 2 
+            end           
+            j += nthreads()
         end
     end
-    dists .= sqrt.(dists)
-    dists[s] = zero(T)
+    @inbounds for i in 1:n
+        for t in 2:nthreads()
+            dists[i, 1] += dists[i, t]
+        end
+    end
+    # @tturbo for j in 1:p
+    #     for i in 1:n
+    #         dists[i] += (X[i, j] - X[s, j]) ^ 2
+    #     end
+    # end
+    dists[:, 1] .= sqrt.(@view(dists[:, 1]))
+    dists[s, 1] = zero(T)
     dists
 end
 
@@ -424,20 +439,32 @@ end
 
 - dists: n x k. 
 """
-function dists_from_rows!(dists::Matrix{T}, X::AbstractMatrix{T}, iseeds::Vector{Int}) where T
+function dists_from_rows!(dists::Array{T, 3}, X::AbstractMatrix{T}, iseeds::Vector{Int}) where T
     n, p = size(X)
     k = size(dists, 2)
     @assert size(dists, 1) == n
     fill!(dists, zero(T))
     X_subsample = X[iseeds, :]
-    @inbounds for j in 1:p
-        for i in 1:n
-            for s in 1:length(iseeds)
-                dists[i, s] += (X[i, j] - X_subsample[s, j]) ^ 2
+    @threads for t in 1:nthreads()
+        j = t
+        while j <= p
+            @inbounds for s in 1:length(iseeds)
+                for i in 1:n
+                    dists[i, s, t] += (X[i, j] - X_subsample[s, j]) ^ 2
+                end
+            end
+            j += nthreads()
+        end
+    end
+    @inbounds for i in 1:n
+        for s in 1:length(iseeds)
+            for t in 2:nthreads()
+                dists[i, s, 1] += dists[i, s, t]
             end
         end
     end
-    dists .= sqrt.(dists)
+    dists[:, :, 1] .= sqrt.(@view(dists[:, :, 1]))
+    # @tturbo dists .= sqrt.(dists)
     dists
 end
 
@@ -446,30 +473,34 @@ end
 
 kmeans plusplus initialization for classes, modified from Clustering.jl. 
 """ 
-function initclass!(class::Vector{Int}, X::AbstractMatrix{T}, k::Int) where T 
+function initclass!(class::Vector{Int}, X::AbstractMatrix{T}, k::Int; rng=Random.GLOBAL_RNG) where T 
     n = size(X, 1)
     iseeds = zeros(Int, k)
-    s = rand(1:n)
+    s = rand(rng, 1:n)
     iseeds[1] = s
 
     if k > 1
-        mincosts = Vector{T}(undef, n)
+        mincosts = Matrix{T}(undef, n, nthreads())
         dists_from_single_row!(mincosts, X, s)
 
         # pick remaining seeds with a chance proportional to mincosts.
-        tmpcosts = zeros(n)
+        tmpcosts = similar(mincosts)
         for j = 2:k
-            s = wsample(1:n, mincosts)
+            s = wsample(rng, 1:n, @view(mincosts[:, 1]))
             iseeds[j] = s
             dists_from_single_row!(tmpcosts, X, s)
-            updatemin!(mincosts, tmpcosts)
-            mincosts[s] = 0
+            updatemin!(@view(mincosts[:, 1]), @view(tmpcosts[:, 1]))
+            mincosts[s, 1] = 0
         end
     end
-    dists = Matrix{T}(undef, n, k)
+    dists = Array{T, 3}(undef, n, k, nthreads())
     dists_from_rows!(dists, X, iseeds)
-    for i in 1:n
-        class[i] = argmin(dists[i, :])
+    @threads for t in 1:nthreads()
+        i = t
+        @inbounds while i <= n
+            class[i] = argmin(@view(dists[i, :, 1]))
+            i += nthreads()
+        end
     end
     return class
 end

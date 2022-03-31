@@ -50,6 +50,7 @@ function sparsekmeans1(X::AbstractImputedMatrix{T}, sparsity::Int;
         # end
         # compute the sparsity criterion
         X.centers .= X.centers_tmp
+        @assert !any(isnan.(X.centers))
         @tullio (X.criterion)[j] = (X.members)[kk] * (X.centers)[j, kk] ^ 2
         # for j = 1:p # compute the sparsity criterion
         #     X.criterion[j] = 0

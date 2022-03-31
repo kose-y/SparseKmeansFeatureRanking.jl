@@ -12,7 +12,6 @@ include("ref/sparse.jl")
 include("ref/sparsekpod.jl")
 
 @testset "nonmissing" begin
-    Random.seed!(16962)
     (features, cases) = (100, 300);
     (classes, sparsity)  = (3, 33);
     X = randn(features, cases);
@@ -22,8 +21,9 @@ include("ref/sparsekpod.jl")
     X[1:m, s + 1:end] = X[1:m, s + 1:end] .+ 2.0;
     # getting true labels
     # k means++ initial seeding
-    Random.seed!(16962)
-    class =initclass(X,classes);
+    # Random.seed!(16962)
+    rng = MersenneTwister(16962)
+    class =initclass(X,classes; rng=rng);
     X1=copy(X);
     X2=copy(X);
     
@@ -37,8 +37,9 @@ include("ref/sparsekpod.jl")
     @time (classout1, center1, selectedvec1, WSSval1, TSSval1) = ref_sparsekmeans1(X1, class1, classes, sparsity);
     @time (classout2, center2, selectedvec2, WSSval2, TSSval2) = ref_sparsekmeans2(X2, class2, classes, sparsity);
 
-    Random.seed!(16962)
-    IM = SKFR.ImputedMatrix{Float64}(collect(transpose(X)), 3)
+    # Random.seed!(16962)
+    rng = MersenneTwister(16962)
+    IM = SKFR.ImputedMatrix{Float64}(collect(transpose(X)), 3; rng=rng)
     X1 = deepcopy(IM)
     X2 = deepcopy(IM)
 
@@ -54,6 +55,13 @@ include("ref/sparsekpod.jl")
 
 
     # test k-means++ class initialization
+    println(class)
+    println(IM.clusters)
+    for i in 1:length(class)
+        if class[i] != IM.clusters[i]
+            println(i)
+        end
+    end
     @test all(IM.clusters .== class)
 
     # test center calculation
@@ -183,10 +191,17 @@ end
     EUR = SnpArray(SnpArrays.datadir("EUR_subset.bed")) # No missing
     EURtrue = convert(Matrix{Float64}, EUR, model=ADDITIVE_MODEL, center=false, scale=false)
     nclusters = 3
-    Random.seed!(765)
-    ISM = SKFR.ImputedSnpMatrix{Float64}(EUR, nclusters)
-    Random.seed!(765)
-    IM = SKFR.ImputedMatrix{Float64}(EURtrue, nclusters)
+    rng = MersenneTwister(263)
+    ISM = SKFR.ImputedSnpMatrix{Float64}(EUR, nclusters; rng=rng)
+    rng = MersenneTwister(263)
+    IM = SKFR.ImputedMatrix{Float64}(EURtrue, nclusters; rng=rng)
+    println(IM.clusters)
+    println(ISM.clusters)
+    for i in 1:size(IM, 1)
+        if IM.clusters[i] != ISM.clusters[i]
+            println(i)
+        end
+    end
     @time (classout1, center1, selectedvec1, WSSval1, TSSval1) = SKFR.sparsekmeans1(IM, 30);
     # @btime (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1($ISM, 30);
     @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30);        
@@ -196,10 +211,9 @@ end
     @test WSSval1 ≈ WSSval1_
     @test TSSval1 ≈ TSSval1_
 
-    # @btime begin
-    #     Random.seed!(765)
-    #     ISM = SKFR.ImputedSnpMatrix{Float64}($EUR, $nclusters)
-    #     (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30);  
-    # end
+    @btime begin
+        ISM = SKFR.ImputedSnpMatrix{Float64}($EUR, $nclusters)
+        (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30);  
+    end
 
 end

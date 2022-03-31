@@ -26,6 +26,7 @@ mutable struct ImputedMatrix{T} <: AbstractImputedMatrix{T}
     members::Vector{Int}
     criterion::Vector{T}
     distances::Matrix{T}
+    distances_tmp::Array{T, 3}
     μ::Vector{T}
     σ::Vector{T}
     renormalize::Bool
@@ -46,6 +47,7 @@ mutable struct ImputedSnpMatrix{T} <: AbstractImputedMatrix{T}
     members::Vector{Int}
     criterion::Vector{T}
     distances::Matrix{T}
+    distances_tmp::Array{T, 3}
     μ::Vector{T}
     σ::Vector{T}
     renormalize::Bool
@@ -60,7 +62,10 @@ end
     return size(x.centers, 2)
 end
 
-function ImputedMatrix{T}(data::AbstractMatrix{T}, k::Int; renormalize=true, initclass=true, fixed_normalization=true) where {T <: Real}
+function ImputedMatrix{T}(data::AbstractMatrix{T}, k::Int; renormalize=true, 
+    initclass=true, 
+    rng=Random.GLOBAL_RNG,
+    fixed_normalization=true) where {T <: Real}
     n, p = size(data)
     clusters = Vector{Int}(undef, n)
     centers = zeros(T, p, k)
@@ -75,7 +80,7 @@ function ImputedMatrix{T}(data::AbstractMatrix{T}, k::Int; renormalize=true, ini
     cnt_ = zeros(Int, nthreads())
     @threads for t in 1:nthreads()
         j = t 
-        while j <= p
+        @inbounds while j <= p
             for i in 1:n
                 if isnan(data[i, j])
                     continue
@@ -89,6 +94,8 @@ function ImputedMatrix{T}(data::AbstractMatrix{T}, k::Int; renormalize=true, ini
     s = sum(s_)
     cnt = sum(cnt_)
 
+    # s = zero(T)
+    # cnt = 0
     # @inbounds for j in 1:p
     #     for i in 1:n
     #         if isnan(data[i, j])
@@ -98,21 +105,25 @@ function ImputedMatrix{T}(data::AbstractMatrix{T}, k::Int; renormalize=true, ini
     #         cnt += 1
     #     end
     # end
+
+    
     avg = s / cnt
+
     centers .= avg
     centers_stable .= centers
     # Initialization step
     members = zeros(Int, k)
     criterion = zeros(T, p)
     distances = zeros(T, n, k)
+    distances_tmp = zeros(T, n, k, nthreads())
 
     μ = zeros(T, p)
     σ = zeros(T, p)
 
     r = ImputedMatrix{T}(data, clusters, clusters_stable, centers, centers_stable, avg,
-        bestclusters, bestcenters, centers_tmp, members, criterion, distances, μ, σ, renormalize, fixed_normalization)
+        bestclusters, bestcenters, centers_tmp, members, criterion, distances, distances_tmp, μ, σ, renormalize, fixed_normalization)
     if initclass
-        r.clusters = initclass!(r.clusters, r, k)
+        r.clusters = initclass!(r.clusters, r, k; rng=rng)
     end
     compute_μ_σ!(r)
     get_centers!(r)
@@ -123,6 +134,7 @@ end
 
 function ImputedSnpMatrix{T}(data::SnpArray, k::Int; renormalize=true, initclass=true, 
         fixed_normalization=true,
+        rng=Random.GLOBAL_RNG,
         model=ADDITIVE_MODEL) where {T <: Real}
     n, p = size(data)
     clusters = Vector{Int}(undef, n)
@@ -134,11 +146,12 @@ function ImputedSnpMatrix{T}(data::SnpArray, k::Int; renormalize=true, initclass
     # set up mean imputation
     fill!(clusters, 1)
     clusters_stable = copy(clusters)
+
     s_ = zeros(T, nthreads())
     cnt_ = zeros(Int, nthreads())
     @threads for t in 1:nthreads()
         j = t 
-        while j <= p
+        @inbounds while j <= p
             for i in 1:n
                 v = SnpArrays.convert(T, getindex(data, i, j), model)
                 if isnan(v)
@@ -152,6 +165,9 @@ function ImputedSnpMatrix{T}(data::SnpArray, k::Int; renormalize=true, initclass
     end
     s = sum(s_)
     cnt = sum(cnt_)
+
+    # s = zero(T)
+    # cnt = 0
     # @inbounds for j in 1:p
     #     for i in 1:n
     #         v = SnpArrays.convert(T, getindex(data, i, j), model)
@@ -164,6 +180,7 @@ function ImputedSnpMatrix{T}(data::SnpArray, k::Int; renormalize=true, initclass
     #     # avg = s / cnt
     #     # centers[j, :] .= avg
     # end
+
     avg = s / cnt
     centers .= avg
     centers_stable .= centers
@@ -171,14 +188,15 @@ function ImputedSnpMatrix{T}(data::SnpArray, k::Int; renormalize=true, initclass
     members = zeros(Int, k)
     criterion = zeros(T, p)
     distances = zeros(T, n, k)
+    distances_tmp = zeros(T, n, k, nthreads())
 
     μ = zeros(T, p)
     σ = ones(T, p)
 
     r = ImputedSnpMatrix{T}(data, model, clusters, clusters_stable, centers, centers_stable, avg,
-        bestclusters, bestcenters, centers_tmp, members, criterion, distances, μ, σ, renormalize, fixed_normalization)
+        bestclusters, bestcenters, centers_tmp, members, criterion, distances, distances_tmp, μ, σ, renormalize, fixed_normalization)
     if initclass
-        initclass!(r.clusters, r, k)
+        initclass!(r.clusters, r, k; rng=rng)
     end
     compute_μ_σ!(r)
     get_centers!(r)
@@ -188,12 +206,12 @@ function ImputedSnpMatrix{T}(data::SnpArray, k::Int; renormalize=true, initclass
     return r
 end
 
-function reinitialize!(X::AbstractImputedMatrix{T}) where T
+function reinitialize!(X::AbstractImputedMatrix{T}; rng=Random.GLOBAL_RNG) where T
     n, p = size(X)
     X.centers_stable .= X.avg
     # clusters_stable does not matter, as long as this is total mean imputation. 
     k = classes(X)
-    initclass!(X.clusters, X, k)
+    initclass!(X.clusters, X, k; rng=rng)
     get_centers!(X)
     return X
 end

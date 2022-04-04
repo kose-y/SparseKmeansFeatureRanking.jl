@@ -128,7 +128,6 @@ function initclass(X, k::Int; rng=Random.GLOBAL_RNG)
   class = zeros(Int, points)
   p = rand(rng, 1:points)
   iseeds[1] = p
-  println(p)
   if k > 1
     mincosts = Distances.colwise(Euclidean(), X, view(X,:,p))
     mincosts[p] = 0
@@ -137,7 +136,6 @@ function initclass(X, k::Int; rng=Random.GLOBAL_RNG)
     tmpcosts = zeros(points)
     for j = 2:k
       p = wsample(rng, 1:points, mincosts)
-      println(p)
       iseeds[j] = p
       c = view(X,:,p)
       Distances.colwise!(tmpcosts, Euclidean(), X, view(X,:,p))

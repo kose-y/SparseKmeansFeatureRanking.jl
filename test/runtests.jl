@@ -55,13 +55,6 @@ include("ref/sparsekpod.jl")
 
 
     # test k-means++ class initialization
-    println(class)
-    println(IM.clusters)
-    for i in 1:length(class)
-        if class[i] != IM.clusters[i]
-            println(i)
-        end
-    end
     @test all(IM.clusters .== class)
 
     # test center calculation
@@ -195,13 +188,6 @@ end
     ISM = SKFR.ImputedSnpMatrix{Float64}(EUR, nclusters; rng=rng)
     rng = MersenneTwister(263)
     IM = SKFR.ImputedMatrix{Float64}(EURtrue, nclusters; rng=rng)
-    println(IM.clusters)
-    println(ISM.clusters)
-    for i in 1:size(IM, 1)
-        if IM.clusters[i] != ISM.clusters[i]
-            println(i)
-        end
-    end
     @time (classout1, center1, selectedvec1, WSSval1, TSSval1) = SKFR.sparsekmeans1(IM, 30);
     # @btime (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1($ISM, 30);
     @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30);        

@@ -197,9 +197,29 @@ end
     @test WSSval1 ≈ WSSval1_
     @test TSSval1 ≈ TSSval1_
 
-    @btime begin
-        ISM = SKFR.ImputedSnpMatrix{Float64}($EUR, $nclusters)
-        (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30);  
-    end
+    ISM = SKFR.ImputedSnpMatrix{Float64}(EUR, nclusters; rng=rng)
+    @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30);  
+    @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30);  
+    SKFR.reinitialize!(ISM)
+    @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30; squares=false);  
+    SKFR.reinitialize!(ISM)
+    @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30; squares=false);  
+    # @btime begin
+    #     ISM = SKFR.ImputedSnpMatrix{Float64}($EUR, $nclusters)
+    #     (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30);  
+    # end
 
 end
+
+# using Profile
+# @testset "alloc" begin
+#     EUR = SnpArray(SnpArrays.datadir("EUR_subset.bed")) # No missing
+#     nclusters = 3
+#     ISM = SKFR.ImputedSnpMatrix{Float64}(EUR, nclusters)
+#     # @btime (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1($ISM, 30);
+#     (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30);        
+#     Profile.clear_malloc_data()
+#     ISM = SKFR.ImputedSnpMatrix{Float64}(EUR, nclusters)
+#     (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30);  
+
+# end

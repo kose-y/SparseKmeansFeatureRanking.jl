@@ -265,7 +265,7 @@ function get_clusters!(X::AbstractImputedMatrix{T}) where T
             X.clusters[i] = kk
             X.members[kk] += 1
             X.members[k_prev] -= 1
-            @threads for t in 1:nthreads()
+            @threads for t in 1:nthreads() # To restructure
                 j = t
                 while j <= p
                     @assert X.members[kk] > 0

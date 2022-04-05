@@ -16,6 +16,7 @@ Structure for SKFR.
 mutable struct ImputedMatrix{T} <: AbstractImputedMatrix{T}
     data::Matrix{T}
     clusters::Vector{Int}
+    clusters_tmp::Vector{Int}
     clusters_stable::Vector{Int}
     centers::Matrix{T}
     centers_stable::Matrix{T}  
@@ -29,6 +30,7 @@ mutable struct ImputedMatrix{T} <: AbstractImputedMatrix{T}
     distances_tmp::Array{T, 3}
     μ::Vector{T}
     σ::Vector{T}
+    switched::BitVector
     renormalize::Bool
     fixed_normalization::Bool
 end
@@ -37,6 +39,7 @@ mutable struct ImputedSnpMatrix{T} <: AbstractImputedMatrix{T}
     data::SnpArray
     model::Union{Val{1}, Val{2}, Val{3}}
     clusters::Vector{Int}
+    clusters_tmp::Vector{Int}
     clusters_stable::Vector{Int}
     centers::Matrix{T}
     centers_stable::Matrix{T} 
@@ -50,6 +53,7 @@ mutable struct ImputedSnpMatrix{T} <: AbstractImputedMatrix{T}
     distances_tmp::Array{T, 3}
     μ::Vector{T}
     σ::Vector{T}
+    switched::BitVector
     renormalize::Bool
     fixed_normalization::Bool
 end
@@ -68,6 +72,7 @@ function ImputedMatrix{T}(data::AbstractMatrix{T}, k::Int; renormalize=true,
     fixed_normalization=true) where {T <: Real}
     n, p = size(data)
     clusters = Vector{Int}(undef, n)
+    clusters_tmp = Vector{Int}(undef, n)
     centers = zeros(T, p, k)
     centers_stable = zeros(T, p, k)
     centers_tmp = zeros(T, p, k)
@@ -119,9 +124,10 @@ function ImputedMatrix{T}(data::AbstractMatrix{T}, k::Int; renormalize=true,
 
     μ = zeros(T, p)
     σ = zeros(T, p)
+    switched = falses(n)
 
-    r = ImputedMatrix{T}(data, clusters, clusters_stable, centers, centers_stable, avg,
-        bestclusters, bestcenters, centers_tmp, members, criterion, distances, distances_tmp, μ, σ, renormalize, fixed_normalization)
+    r = ImputedMatrix{T}(data, clusters, clusters_tmp, clusters_stable, centers, centers_stable, avg,
+        bestclusters, bestcenters, centers_tmp, members, criterion, distances, distances_tmp, μ, σ, switched, renormalize, fixed_normalization)
     if initclass
         r.clusters = initclass!(r.clusters, r, k; rng=rng)
     end
@@ -138,6 +144,7 @@ function ImputedSnpMatrix{T}(data::SnpArray, k::Int; renormalize=true, initclass
         model=ADDITIVE_MODEL) where {T <: Real}
     n, p = size(data)
     clusters = Vector{Int}(undef, n)
+    clusters_tmp = Vector{Int}(undef, n)
     centers = zeros(T, p, k)
     centers_stable = zeros(T, p, k)
     bestclusters = Vector{Int}(undef, n)
@@ -192,9 +199,11 @@ function ImputedSnpMatrix{T}(data::SnpArray, k::Int; renormalize=true, initclass
 
     μ = zeros(T, p)
     σ = ones(T, p)
+    switched = falses(n)
+    
 
-    r = ImputedSnpMatrix{T}(data, model, clusters, clusters_stable, centers, centers_stable, avg,
-        bestclusters, bestcenters, centers_tmp, members, criterion, distances, distances_tmp, μ, σ, renormalize, fixed_normalization)
+    r = ImputedSnpMatrix{T}(data, model, clusters, clusters_tmp, clusters_stable, centers, centers_stable, avg,
+        bestclusters, bestcenters, centers_tmp, members, criterion, distances, distances_tmp, μ, σ, switched, renormalize, fixed_normalization)
     if initclass
         initclass!(r.clusters, r, k; rng=rng)
     end

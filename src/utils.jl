@@ -256,36 +256,34 @@ end
 function get_clusters!(X::AbstractImputedMatrix{T}) where T
     n, p = size(X)
     k = size(X.centers, 2)
-    fill!(X.switched, false)
+    switched = false
     @inbounds for i = 1:n
         kk = argmin(@view(X.distances[i, :])) # class of closest center
         if kk != X.clusters[i]
-            X.switched[i] = true
-            X.clusters_tmp[i] = kk
-        end
-    end
-    switchedidx = findall(X.switched)
-    @threads for t in 1:nthreads()
-        ii = t
-        while ii <= length(switchedidx)
-            i = switchedidx[ii]
-            kk = X.clusters_tmp[i] # class of closest center
+            switched = true
             k_prev = X.clusters[i]
             X.clusters[i] = kk
             X.members[kk] += 1
             X.members[k_prev] -= 1
-            @inbounds for j in 1:p
-                X.centers_tmp[j, kk] = X.centers_tmp[j, kk] + (X[i, j]- X.centers_tmp[j, kk]) / X.members[kk]
-                if X.members[k_prev] == 0
-                    X.centers_tmp[j, k_prev] = zero(T)
-                else
-                    X.centers_tmp[j, k_prev] = X.centers_tmp[j, k_prev] - (X[i, j] - X.centers_tmp[j, k_prev]) / X.members[k_prev]
-                end      
+            @threads for t in 1:nthreads() # To restructure
+                j = t
+                while j <= p
+                    @assert X.members[kk] > 0
+                    X.centers_tmp[j, kk] = X.centers_tmp[j, kk] + (X[i, j]- X.centers_tmp[j, kk]) / X.members[kk]
+                    if X.members[k_prev] == 0
+                        X.centers_tmp[j, k_prev] = zero(T)
+                    else
+                        X.centers_tmp[j, k_prev] = X.centers_tmp[j, k_prev] - (X[i, j] - X.centers_tmp[j, k_prev]) / X.members[k_prev]
+                    end      
+                    j += nthreads()
+                end
             end
-            ii += nthreads()
+            # for j in 1:p
+            #     X.centers_tmp[j, kk] = X.centers_tmp[j, kk] + (X[i, j]- X.centers_tmp[j, kk]) / X.members[kk]
+            #     X.centers_tmp[j, k_prev] = X.centers_tmp[j, k_prev] - (X[i, j] - X.centers_tmp[j, k_prev]) / X.members[k_prev]
+            # end
         end
     end
-    switched = length(switchedidx) != 0
     return (X.clusters, switched)
 end
 

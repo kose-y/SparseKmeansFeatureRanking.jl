@@ -150,7 +150,7 @@ function compute_μ_σ!(A::AbstractImputedMatrix{T}) where T
     end
 end
 
-function compute_μ_σ!(A::ImputedSnpMatrix{T}) where T
+function compute_μ_σ!(A::AbstractImputedSnpMatrix{T}) where T
     n, p = size(A)
     A.μ .= zero(T)
     A.σ .= one(T)
@@ -250,6 +250,36 @@ function get_distances_to_center!(X::ImputedSnpMatrix{T}, selectedvec::AbstractV
     X.distances
 end
 
+function get_distances_to_center!(X::ImputedStackedSnpMatrix{T}, selectedvec::AbstractVector{Int}=1:size(X, 2)) where T
+    # TODO: skip non-selected variables
+    n, p = size(X)
+    k = size(X.centers, 2)
+    fill!(X.distances, zero(T))
+    @assert X.renormalize "X.renormalize should be true"
+    fill!(X.distances_tmp, zero(T))
+    @threads for t in 1:nthreads()
+        jj = t
+        while jj <= length(selectedvec)
+            j = selectedvec[jj]
+            jjj = searchsortedfirst(X.data.offsets, j) - 1
+            jlocal = j - X.data.offsets[jjj]
+            @turbo for kk in 1:k, i in 1:n
+                ip3 = i + 3
+                v = ((X.data.arrays[jjj].data)[ip3 >> 2, jlocal] >> ((ip3 & 0x03) << 1)) & 0x03
+                nanv = (v == 0x01)
+                v = (v > 0x01) ? T(v - 0x01) : T(v)
+                v = nanv * X.centers_stable[j, X.clusters_stable[i]] + !nanv * v
+                v = (v - X.μ[j]) / ((X.σ[j] < eps()) + X.σ[j])
+                X.distances_tmp[i, kk, t] += (v - X.centers[j, kk]) ^ 2
+            end
+            jj += nthreads()
+        end
+    end
+    @tullio X.distances[i, kk] = X.distances_tmp[i, kk, t]
+    @tullio X.distances[i, kk] = sqrt(X.distances[i, kk])
+    X.distances
+end
+
 """ 
     get_clusters!(X, center)
 """
@@ -323,32 +353,6 @@ function get_centers!(X::AbstractImputedMatrix{T}) where T <: Real
     X.centers
 end
 
-# function get_centers!(X::ImputedMatrix{T}) where T <: Real
-#     n, p = size(X)
-#     k = size(X.centers, 2)
-#     @assert length(X.clusters) == n
-#     @assert size(X.centers, 1) == p
-#     fill!(X.centers_tmp, zero(T))
-#     fill!(X.members, zero(eltype(X.members)))
-#     @tullio X.centers_tmp[j, c] = begin
-#         v = X.data[i, j]
-#         nanv = isnan(v)
-#         v = nanv * X.centers_stable[j, X.clusters_stable[i]] + !nanv * v
-#         v = (v - X.μ[j]) / ((X.σ[j] < eps()) + X.σ[j])
-#         (X.clusters[i] == c) * v
-#     end
-#     @inbounds for i in 1:n
-#         c = X.clusters[i]
-#         X.members[c] = X.members[c] + 1
-#     end
-#     @inbounds for kk = 1:k
-#         if X.members[kk] > 0
-#             X.centers[:, kk] .= @view(X.centers_tmp[:, kk]) ./ X.members[kk]
-#         end
-#     end
-#     X.centers
-# end
-
 function get_centers!(X::ImputedSnpMatrix{T}) where T <: Real
     n, p = size(X)
     k = size(X.centers, 2)
@@ -356,7 +360,6 @@ function get_centers!(X::ImputedSnpMatrix{T}) where T <: Real
     @assert size(X.centers, 1) == p
     fill!(X.centers_tmp, zero(T))
     fill!(X.members, zero(eltype(X.members)))
-
     @tturbo for j in 1:size(X.centers_tmp, 1), i in 1:length(X.clusters)
         ip3 = i + 3
         v = ((X.data.data)[ip3 >> 2, j] >> ((ip3 & 0x03) << 1)) & 0x03
@@ -368,29 +371,40 @@ function get_centers!(X::ImputedSnpMatrix{T}) where T <: Real
             X.centers_tmp[j, c] += (X.clusters[i] == c) * v
         end
     end
+    @inbounds for i in 1:n
+        c = X.clusters[i]
+        X.members[c] = X.members[c] + 1
+    end
+    @inbounds for kk = 1:k
+        if X.members[kk] > 0
+            X.centers[:, kk] .= @view(X.centers_tmp[:, kk]) ./ X.members[kk]
+        end
+    end
+    X.centers_tmp .= X.centers
+    X.centers
+end
 
-    # @turbo for j in 1:size(X.centers_tmp, 1), i in 1:length(X.clusters)
-    #     ip3 = i + 3
-    #     v = ((X.data.data)[ip3 >> 2, j] >> ((ip3 & 0x03) << 1)) & 0x03
-    #     nanv = (v == 0x01)
-    #     v = (v > 0x01) ? T(v - 0x01) : T(v)
-    #     v = nanv * X.centers_stable[j, X.clusters_stable[i]] + !nanv * v
-    #     v = (v - X.μ[j]) / ((X.σ[j] < eps()) + X.σ[j])
-    #     for c in 1:size(X.centers_tmp, 2)
-    #         X.centers_tmp[j, c] += (X.clusters[i] == c) * v
-    #     end
-    # end
-
-
-    # @tullio X.centers_tmp[j, c] = begin
-    #     ip3 = i + 3
-    #     v = ((X.data.data)[ip3 >> 2, j] >> ((ip3 & 0x03) << 1)) & 0x03
-    #     nanv = (v == 0x01)
-    #     v = (v > 0x01) ? T(v - 0x01) : T(v)
-    #     v = nanv * X.centers_stable[j, X.clusters_stable[i]] + !nanv * v
-    #     v = (v - X.μ[j]) / ((X.σ[j] < eps()) + X.σ[j])
-    #     (X.clusters[i] == c) * v
-    # end
+function get_centers!(X::ImputedStackedSnpMatrix{T}) where T <: Real
+    n, p = size(X)
+    k = size(X.centers, 2)
+    @assert length(X.clusters) == n
+    @assert size(X.centers, 1) == p
+    fill!(X.centers_tmp, zero(T))
+    fill!(X.members, zero(eltype(X.members)))
+    for jjj in 1:length(X.data.arrays)
+        offsets = X.data.offsets
+        @tturbo for j in (offsets[jjj] + 1):(offsets[jjj + 1]), i in 1:length(X.clusters)
+            ip3 = i + 3
+            v = ((X.data.arrays[jjj].data)[ip3 >> 2, j - offsets[jjj]] >> ((ip3 & 0x03) << 1)) & 0x03
+            nanv = (v == 0x01)
+            v = (v > 0x01) ? T(v - 0x01) : T(v)
+            v = nanv * X.centers_stable[j, X.clusters_stable[i]] + !nanv * v
+            v = (v - X.μ[j]) / ((X.σ[j] < eps()) + X.σ[j])
+            for c in 1:size(X.centers_tmp, 2)
+                X.centers_tmp[j, c] += (X.clusters[i] == c) * v
+            end
+        end
+    end
     @inbounds for i in 1:n
         c = X.clusters[i]
         X.members[c] = X.members[c] + 1

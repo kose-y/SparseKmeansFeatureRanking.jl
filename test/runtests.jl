@@ -39,14 +39,14 @@ include("ref/sparsekpod.jl")
 
     # Random.seed!(16962)
     rng = MersenneTwister(16962)
-    IM = SKFR.ImputedMatrix{Float64}(collect(transpose(X)), 3; rng=rng)
+    IM = SKFR.get_imputed_matrix(collect(transpose(X)), 3; rng=rng)
     X1 = deepcopy(IM)
     X2 = deepcopy(IM)
 
     # test correctness of on-the-fly normalization
     SKFR.compute_μ_σ!(IM)
 
-    IM2 = SKFR.ImputedMatrix{Float64}(collect(transpose(X)), 3; renormalize=false)
+    IM2 = SKFR.get_imputed_matrix(collect(transpose(X)), 3; renormalize=false)
     for j = 1:features # normalize each feature
         # Do it on the fly with SnpArray. 
         IM2[:, j] .= zscore(@view(IM2[:, j]))
@@ -91,103 +91,137 @@ include("ref/sparsekpod.jl")
     @test TSSval2 ≈ TSSval2_
 end
 
-# @testset "kpod" begin
-#     Random.seed!(16962)
-#     (features, cases) = (100, 300);
-#     (classes, sparsity)  = (3, 33);
-#     X = randn(features, cases);
-#     (m, n) = (div(features, 3), 2 * div(features, 3));
-#     (r, s) = (div(cases, 3) + 1, 2 * div(cases, 3));
-#     X[1:m, r:s] = X[1:m, r:s] .+ 1.0;
-#     X[1:m, s + 1:end] = X[1:m, s + 1:end] .+ 2.0;
+# # @testset "kpod" begin
+# #     Random.seed!(16962)
+# #     (features, cases) = (100, 300);
+# #     (classes, sparsity)  = (3, 33);
+# #     X = randn(features, cases);
+# #     (m, n) = (div(features, 3), 2 * div(features, 3));
+# #     (r, s) = (div(cases, 3) + 1, 2 * div(cases, 3));
+# #     X[1:m, r:s] = X[1:m, r:s] .+ 1.0;
+# #     X[1:m, s + 1:end] = X[1:m, s + 1:end] .+ 2.0;
 
-#     truelabels=[];
-#     class1labels=ones(100);
-#     append!(truelabels,class1labels);
-#     class2labels=ones(100)*2;
-#     append!(truelabels,class2labels);
-#     class3labels=ones(100)*3;
-#     append!(truelabels,class3labels);
+# #     truelabels=[];
+# #     class1labels=ones(100);
+# #     append!(truelabels,class1labels);
+# #     class2labels=ones(100)*2;
+# #     append!(truelabels,class2labels);
+# #     class3labels=ones(100)*3;
+# #     append!(truelabels,class3labels);
 
 
-#     # replacing 10% of entries at random
-#     missingix=sample(1:features*cases,Int(features*cases*0.1),replace=false)
-#     y = convert(Array{Union{Missing,Float64},2}, X)
-#     # y is the partially observed version of X above
-#     y[ CartesianIndices(y)[missingix]]=missings(Float64, length(missingix));
+# #     # replacing 10% of entries at random
+# #     missingix=sample(1:features*cases,Int(features*cases*0.1),replace=false)
+# #     y = convert(Array{Union{Missing,Float64},2}, X)
+# #     # y is the partially observed version of X above
+# #     y[ CartesianIndices(y)[missingix]]=missings(Float64, length(missingix));
 
-#     Random.seed!(77)
-#     missingindices = findMissing(y)
-#     nonmissingindices=setdiff(CartesianIndices(y)[1:end],missingindices)
-#     println(size(y))
-#     X_copy = initialImpute(y)
+# #     Random.seed!(77)
+# #     missingindices = findMissing(y)
+# #     nonmissingindices=setdiff(CartesianIndices(y)[1:end],missingindices)
+# #     println(size(y))
+# #     X_copy = initialImpute(y)
     
-#     X_copy=convert(Array{Float64,2}, X_copy)
+# #     X_copy=convert(Array{Float64,2}, X_copy)
     
-#     Random.seed!(77)
-#     init_classes = initclass(copy(X_copy), classes)
-#     Random.seed!(77)
-#     y[ CartesianIndices(y)[missingix]]=missings(Float64, length(missingix));
-#     @time (classout3,aa,bb,cc,dd)=ref_sparsekpod(copy(y'),classes,sparsity, true, 20)
+# #     Random.seed!(77)
+# #     init_classes = initclass(copy(X_copy), classes)
+# #     Random.seed!(77)
+# #     y[ CartesianIndices(y)[missingix]]=missings(Float64, length(missingix));
+# #     @time (classout3,aa,bb,cc,dd)=ref_sparsekpod(copy(y'),classes,sparsity, true, 20)
     
-#     #arisparse3=randindex(classout3, convert(Array{Int64,1},truelabels))
-#     #println("ARI of sparsekpod (ref): ",arisparse3[1])
+# #     #arisparse3=randindex(classout3, convert(Array{Int64,1},truelabels))
+# #     #println("ARI of sparsekpod (ref): ",arisparse3[1])
 
-#     for i = 1:features # normalize each feature
-#         # Do it on the fly with SnpArray. 
-#         X_copy[i, :] .= zscore(@view(X_copy[i, :]))
-#     end
+# #     for i = 1:features # normalize each feature
+# #         # Do it on the fly with SnpArray. 
+# #         X_copy[i, :] .= zscore(@view(X_copy[i, :]))
+# #     end
 
-#     Random.seed!(77)
-#     y = copy(X)
-#     y[CartesianIndices(y)[missingix]] .= NaN
-#     y = collect(transpose(y))
-#     IM = SKFR.ImputedMatrix{Float64}(y, classes; fixed_normalization=false)
+# #     Random.seed!(77)
+# #     y = copy(X)
+# #     y[CartesianIndices(y)[missingix]] .= NaN
+# #     y = collect(transpose(y))
+# #     IM = SKFR.ImputedMatrix{Float64}(y, classes; fixed_normalization=false)
 
-#     @test all(init_classes .== IM.clusters)
-
-
-#     ## The first output argument is the cluster labels, and the rest are not of importance in this example.
-#     @time (classout3_,_, aa_,bb_,cc_,dd_)=SKFR.sparsekpod(IM,sparsity; kmpp_flag=true, maxiter=20, max_inner_iter=99999)
-#     #arisparse3=randindex(classout3_, convert(Array{Int64,1},truelabels))
-#     #println("ARI of sparsekpod (new): ",arisparse3[1])
-
-#     @test all(classout3 .== classout3_)
-#     @test all(aa' .== aa_)
-#     println(bb)
-#     println(bb_)
-#     @test all(bb .≈ bb_)
-#     @test cc ≈ cc_
-#     @test all(dd .≈ dd_)
-#     # y = copy(X)
-#     # y[CartesianIndices(y)[missingix]] .= NaN
-#     # y = collect(transpose(y))
-#     # for l in 1:10
-#     #     #Random.seed!(77 + l)
-#     #     @time (classout3_,aa_,bb_,cc_,dd_)=SKFR.sparsekpod(y,classes,sparsity, false, 1)
-#     #     arisparse3=randindex(classout3_, convert(Array{Int64,1},truelabels))
-#     #     println("ARI of sparsekpod (new): ",arisparse3[1])
-#     # end
+# #     @test all(init_classes .== IM.clusters)
 
 
+# #     ## The first output argument is the cluster labels, and the rest are not of importance in this example.
+# #     @time (classout3_,_, aa_,bb_,cc_,dd_)=SKFR.sparsekpod(IM,sparsity; kmpp_flag=true, maxiter=20, max_inner_iter=99999)
+# #     #arisparse3=randindex(classout3_, convert(Array{Int64,1},truelabels))
+# #     #println("ARI of sparsekpod (new): ",arisparse3[1])
 
-#     # println(classout3_)
-#     # println(aa_)
-#     # println(bb_)
-#     # println(cc_)
-#     # println(dd_)
-#     #(clusts, cluster_vals[:,1:i],obj_vals[1:i],fit[i],fit[1:i])
+# #     @test all(classout3 .== classout3_)
+# #     @test all(aa' .== aa_)
+# #     println(bb)
+# #     println(bb_)
+# #     @test all(bb .≈ bb_)
+# #     @test cc ≈ cc_
+# #     @test all(dd .≈ dd_)
+# #     # y = copy(X)
+# #     # y[CartesianIndices(y)[missingix]] .= NaN
+# #     # y = collect(transpose(y))
+# #     # for l in 1:10
+# #     #     #Random.seed!(77 + l)
+# #     #     @time (classout3_,aa_,bb_,cc_,dd_)=SKFR.sparsekpod(y,classes,sparsity, false, 1)
+# #     #     arisparse3=randindex(classout3_, convert(Array{Int64,1},truelabels))
+# #     #     println("ARI of sparsekpod (new): ",arisparse3[1])
+# #     # end
 
-# end
+
+
+# #     # println(classout3_)
+# #     # println(aa_)
+# #     # println(bb_)
+# #     # println(cc_)
+# #     # println(dd_)
+# #     #(clusts, cluster_vals[:,1:i],obj_vals[1:i],fit[i],fit[1:i])
+
+# # end
 
 @testset "SnpArray" begin
     EUR = SnpArray(SnpArrays.datadir("EUR_subset.bed")) # No missing
     EURtrue = convert(Matrix{Float64}, EUR, model=ADDITIVE_MODEL, center=false, scale=false)
     nclusters = 3
     rng = MersenneTwister(263)
-    ISM = SKFR.ImputedSnpMatrix{Float64}(EUR, nclusters; rng=rng)
+    ISM = SKFR.get_imputed_matrix(EUR, nclusters; rng=rng)
     rng = MersenneTwister(263)
-    IM = SKFR.ImputedMatrix{Float64}(EURtrue, nclusters; rng=rng)
+    IM = SKFR.get_imputed_matrix(EURtrue, nclusters; rng=rng)
+    @time (classout1, center1, selectedvec1, WSSval1, TSSval1) = SKFR.sparsekmeans1(IM, 30);
+    # @btime (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1($ISM, 30);
+    @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30);        
+    @test classout1 == classout1_
+    @test all(center1 .≈ center1_)
+    @test all(selectedvec1 .== selectedvec1_)
+    @test WSSval1 ≈ WSSval1_
+    @test TSSval1 ≈ TSSval1_
+
+    ISM = SKFR.get_imputed_matrix(EUR, nclusters; rng=rng)
+    @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30);  
+    @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30);  
+    SKFR.reinitialize!(ISM)
+    @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30; squares=false);  
+    SKFR.reinitialize!(ISM)
+    @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30; squares=false);  
+    # @btime begin
+    #     ISM = SKFR.ImputedSnpMatrix{Float64}($EUR, $nclusters)
+    #     (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30);  
+    # end
+end
+
+@testset "StackedSnpArray" begin
+    EUR = SnpArray(SnpArrays.datadir("EUR_subset.bed")) # No missing
+    EURfirsthalf = SnpArrays.filter(SnpArrays.datadir("EUR_subset"), 1:size(EUR, 1), 1:(size(EUR, 2) ÷ 2); des="EUR_subset_1")
+    EURsecondhalf = SnpArrays.filter(SnpArrays.datadir("EUR_subset"), 1:size(EUR, 1), (size(EUR, 2) ÷ 2 + 1):(size(EUR, 2)); des="EUR_subset_2")
+    EUR = SnpArray(SnpArrays.datadir("EUR_subset.bed")) # No missing
+    EURtrue = convert(Matrix{Float64}, EUR, model=ADDITIVE_MODEL, center=false, scale=false)
+    EUR_stacked = StackedSnpArray([EURfirsthalf, EURsecondhalf])
+    nclusters = 3
+    rng = MersenneTwister(263)
+    ISM = SKFR.get_imputed_matrix(EUR_stacked, nclusters; rng=rng)
+    rng = MersenneTwister(263)
+    IM = SKFR.get_imputed_matrix(EURtrue, nclusters; rng=rng)
     @time (classout1, center1, selectedvec1, WSSval1, TSSval1) = SKFR.sparsekmeans1(IM, 30);
     # @btime (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1($ISM, 30);
     @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30);        
@@ -203,13 +237,18 @@ end
     SKFR.reinitialize!(ISM)
     @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30; squares=false);  
     SKFR.reinitialize!(ISM)
-    @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30; squares=false);  
-    # @btime begin
-    #     ISM = SKFR.ImputedSnpMatrix{Float64}($EUR, $nclusters)
-    #     (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30);  
-    # end
+    @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30; squares=false);     
+    
+    rm("EUR_subset_1.bed")
+    rm("EUR_subset_1.fam")
+    rm("EUR_subset_1.bim")
 
+    rm("EUR_subset_2.bed")
+    rm("EUR_subset_2.fam")
+    rm("EUR_subset_2.bim")
 end
+
+
 
 # using Profile
 # @testset "alloc" begin

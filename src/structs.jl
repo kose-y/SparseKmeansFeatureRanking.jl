@@ -58,12 +58,50 @@ mutable struct ImputedSnpMatrix{T} <: AbstractImputedMatrix{T}
     fixed_normalization::Bool
 end
 
+mutable struct ImputedStackedSnpMatrix{T} <: AbstractImputedMatrix{T}
+    data::StackedSnpArray
+    model::Union{Val{1}, Val{2}, Val{3}}
+    clusters::Vector{Int}
+    clusters_tmp::Vector{Int}
+    clusters_stable::Vector{Int}
+    centers::Matrix{T}
+    centers_stable::Matrix{T} 
+    avg::T
+    bestclusters::Vector{Int}
+    bestcenters::Matrix{T}
+    centers_tmp::Matrix{T}
+    members::Vector{Int}
+    criterion::Vector{T}
+    distances::Matrix{T}
+    distances_tmp::Array{T, 3}
+    μ::Vector{T}
+    σ::Vector{T}
+    switched::BitVector
+    renormalize::Bool
+    fixed_normalization::Bool
+end
+
+const AbstractImputedSnpMatrix{T} = Union{ImputedSnpMatrix{T}, ImputedStackedSnpMatrix{T}}
+
 @inline function Base.size(x::AbstractImputedMatrix)
     return size(x.data)
 end
 
 @inline function classes(x::AbstractImputedMatrix)
     return size(x.centers, 2)
+end
+
+function get_imputed_matrix(data, k::Int; renormalize=true,
+    initclass=true, 
+    rng=Random.GLOBAL_RNG,
+    fixed_normalization=true, T=Float64)
+    if typeof(data) <: AbstractSnpArray
+        ImputedSnpMatrix{T}(data, k; renormalize=renormalize, initclass=initclass, 
+            rng=rng, fixed_normalization=fixed_normalization)
+    else
+        ImputedMatrix{T}(data, k; renormalize=renormalize, initclass=initclass, 
+            rng=rng, fixed_normalization=fixed_normalization)
+    end
 end
 
 function ImputedMatrix{T}(data::AbstractMatrix{T}, k::Int; renormalize=true, 
@@ -98,19 +136,6 @@ function ImputedMatrix{T}(data::AbstractMatrix{T}, k::Int; renormalize=true,
     end
     s = sum(s_)
     cnt = sum(cnt_)
-
-    # s = zero(T)
-    # cnt = 0
-    # @inbounds for j in 1:p
-    #     for i in 1:n
-    #         if isnan(data[i, j])
-    #             continue
-    #         end
-    #         s += data[i, j]
-    #         cnt += 1
-    #     end
-    # end
-
     
     avg = s / cnt
 
@@ -138,7 +163,7 @@ function ImputedMatrix{T}(data::AbstractMatrix{T}, k::Int; renormalize=true,
     return r
 end
 
-function ImputedSnpMatrix{T}(data::SnpArray, k::Int; renormalize=true, initclass=true, 
+function ImputedSnpMatrix{T}(data::AbstractSnpArray, k::Int; renormalize=true, initclass=true, 
         fixed_normalization=true,
         rng=Random.GLOBAL_RNG,
         model=ADDITIVE_MODEL) where {T <: Real}
@@ -173,21 +198,6 @@ function ImputedSnpMatrix{T}(data::SnpArray, k::Int; renormalize=true, initclass
     s = sum(s_)
     cnt = sum(cnt_)
 
-    # s = zero(T)
-    # cnt = 0
-    # @inbounds for j in 1:p
-    #     for i in 1:n
-    #         v = SnpArrays.convert(T, getindex(data, i, j), model)
-    #         if isnan(v)
-    #             continue
-    #         end
-    #         s += v
-    #         cnt += 1
-    #     end
-    #     # avg = s / cnt
-    #     # centers[j, :] .= avg
-    # end
-
     avg = s / cnt
     centers .= avg
     centers_stable .= centers
@@ -201,8 +211,8 @@ function ImputedSnpMatrix{T}(data::SnpArray, k::Int; renormalize=true, initclass
     σ = ones(T, p)
     switched = falses(n)
     
-
-    r = ImputedSnpMatrix{T}(data, model, clusters, clusters_tmp, clusters_stable, centers, centers_stable, avg,
+    MatrixType = typeof(data) <: SnpArray ? ImputedSnpMatrix : ImputedStackedSnpMatrix
+    r = MatrixType{T}(data, model, clusters, clusters_tmp, clusters_stable, centers, centers_stable, avg,
         bestclusters, bestcenters, centers_tmp, members, criterion, distances, distances_tmp, μ, σ, switched, renormalize, fixed_normalization)
     if initclass
         initclass!(r.clusters, r, k; rng=rng)
@@ -243,7 +253,7 @@ end
     A.data[i, j] = v
 end
 
-@inline function Base.setindex!(A::ImputedSnpMatrix{T}, v::T, i::Int, j::Int) where T
+@inline function Base.setindex!(A::AbstractImputedSnpMatrix{T}, v::T, i::Int, j::Int) where T
     @error "setindex!() on ImputedSnpMatrix is not allowed."
 end
 
@@ -251,6 +261,7 @@ end
     Base.getindex(A.data, i, j)
 end    
 
-@inline function getindex_raw(A::ImputedSnpMatrix{T}, i::Int, j::Int)::T where T
+@inline function getindex_raw(A::AbstractImputedSnpMatrix{T}, 
+    i::Int, j::Int)::T where T
     SnpArrays.convert(T, getindex(A.data, i, j), A.model)
 end  

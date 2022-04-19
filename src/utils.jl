@@ -295,7 +295,7 @@ function get_clusters!(X::AbstractImputedMatrix{T}) where T
             X.clusters[i] = kk
             X.members[kk] += 1
             X.members[k_prev] -= 1
-            @threads for t in 1:nthreads() # To restructure
+            @threads for t in 1:nthreads() 
                 j = t
                 while j <= p
                     @assert X.members[kk] > 0
@@ -448,6 +448,29 @@ function dists_from_single_row!(dists::Matrix{T}, X::AbstractMatrix{T}, s::Int) 
     dists[s, 1] = zero(T)
     dists
 end
+function dists_from_single_row!(dists::Matrix{T}, X::ImputedSnpMatrix{T}, s::Int) where T
+    n, p = size(X)
+    fill!(dists, zero(T))
+    @tturbo for j in 1:p
+        sp3 = s + 3
+        vr = ((X.data.data)[sp3 >> 2, j] >> ((sp3 & 0x03) << 1)) & 0x03
+        nanvr = (vr == 0x01)
+        vr = (vr > 0x01) ? T(vr - 0x01) : T(vr)
+        vr = nanvr * X.centers_stable[j, X.clusters_stable[s]] + !nanvr * vr
+        vr = (vr - X.μ[j]) / ((X.σ[j] < eps()) + X.σ[j])
+        for i in 1:n
+            ip3 = i + 3
+            v = ((X.data.data)[ip3 >> 2, j] >> ((ip3 & 0x03) << 1)) & 0x03
+            nanv = (v == 0x01)
+            v = (v > 0x01) ? T(v - 0x01) : T(v)
+            v = nanv * X.centers_stable[j, X.clusters_stable[i]] + !nanv * v
+            v = (v - X.μ[j]) / ((X.σ[j] < eps()) + X.σ[j])
+            dists[i, 1] += (v - vr) ^ 2
+        end
+    end
+    dists[:, 1] .= sqrt.(@view(dists[:, 1]))
+    dists[s, 1] = zero(T)
+end
 
 """
 
@@ -474,6 +497,30 @@ function dists_from_rows!(dists::Array{T, 3}, X::AbstractMatrix{T}, iseeds::Vect
         for s in 1:length(iseeds)
             for t in 2:nthreads()
                 dists[i, s, 1] += dists[i, s, t]
+            end
+        end
+    end
+    dists[:, :, 1] .= sqrt.(@view(dists[:, :, 1]))
+    # @tturbo dists .= sqrt.(dists)
+    dists
+end
+
+function dists_from_rows!(dists::Array{T, 3}, X::ImputedSnpMatrix{T}, iseeds::Vector{Int}) where T
+    n, p = size(X)
+    k = size(dists, 2)
+    @assert size(dists, 1) == n
+    fill!(dists, zero(T))
+    X_subsample = X[iseeds, :]
+    @tturbo for j in 1:p
+        for i in 1:n
+            ip3 = i + 3
+            v = ((X.data.data)[ip3 >> 2, j] >> ((ip3 & 0x03) << 1)) & 0x03
+            nanv = (v == 0x01)
+            v = (v > 0x01) ? T(v - 0x01) : T(v)
+            v = nanv * X.centers_stable[j, X.clusters_stable[i]] + !nanv * v
+            v = (v - X.μ[j]) / ((X.σ[j] < eps()) + X.σ[j])
+            for s in 1:length(iseeds)
+                dists[i, s, 1] += (v - X_subsample[s, j]) ^ 2
             end
         end
     end

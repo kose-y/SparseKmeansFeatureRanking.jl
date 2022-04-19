@@ -179,24 +179,40 @@ function ImputedSnpMatrix{T}(data::AbstractSnpArray, k::Int; renormalize=true, i
     fill!(clusters, 1)
     clusters_stable = copy(clusters)
 
-    s_ = zeros(T, nthreads())
-    cnt_ = zeros(Int, nthreads())
-    @threads for t in 1:nthreads()
-        j = t 
-        @inbounds while j <= p
-            for i in 1:n
-                v = SnpArrays.convert(T, getindex(data, i, j), model)
-                if isnan(v)
-                    continue
-                end
-                s_[t] += v
-                cnt_[t] += 1
-            end
-            j += nthreads()
-        end
+    s = zero(T)
+    cnt = zero(Int)
+    # s_ = zeros(T, nthreads())
+    # cnt_ = zeros(Int, nthreads())
+
+    @tturbo for j in 1:p, i in 1:n
+        ip3 = i + 3
+        v = ((data.data)[ip3 >> 2, j] >> ((ip3 & 0x03) << 1)) & 0x03
+        nanv = (v == 0x01)
+        v = (v > 0x01) ? T(v - 0x01) : T(v)
+        s += !nanv * v
+        cnt += !nanv * 1
+        # v = nanv * X.centers_stable[j, X.clusters_stable[i]] + !nanv * v
+        # v = (v - X.μ[j]) / ((X.σ[j] < eps()) + X.σ[j])
+        # for c in 1:size(X.centers_tmp, 2)
+        #     X.centers_tmp[j, c] += (X.clusters[i] == c) * v
+        # end
     end
-    s = sum(s_)
-    cnt = sum(cnt_)
+    # @threads for t in 1:nthreads()
+    #     j = t 
+    #     @inbounds while j <= p
+    #         for i in 1:n
+    #             v = SnpArrays.convert(T, getindex(data, i, j), model)
+    #             if isnan(v)
+    #                 continue
+    #             end
+    #             s_[t] += v
+    #             cnt_[t] += 1
+    #         end
+    #         j += nthreads()
+    #     end
+    # end
+    # s = sum(s_)
+    # cnt = sum(cnt_)
 
     avg = s / cnt
     centers .= avg

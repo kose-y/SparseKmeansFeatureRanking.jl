@@ -210,43 +210,43 @@ end
     # end
 end
 
-@testset "StackedSnpArray" begin
-    EUR = SnpArray(SnpArrays.datadir("EUR_subset.bed")) # No missing
-    EURfirsthalf = SnpArrays.filter(SnpArrays.datadir("EUR_subset"), 1:size(EUR, 1), 1:(size(EUR, 2) ÷ 2); des="EUR_subset_1")
-    EURsecondhalf = SnpArrays.filter(SnpArrays.datadir("EUR_subset"), 1:size(EUR, 1), (size(EUR, 2) ÷ 2 + 1):(size(EUR, 2)); des="EUR_subset_2")
-    EUR = SnpArray(SnpArrays.datadir("EUR_subset.bed")) # No missing
-    EURtrue = convert(Matrix{Float64}, EUR, model=ADDITIVE_MODEL, center=false, scale=false)
-    EUR_stacked = StackedSnpArray([EURfirsthalf, EURsecondhalf])
-    nclusters = 3
-    rng = MersenneTwister(263)
-    ISM = SKFR.get_imputed_matrix(EUR_stacked, nclusters; rng=rng)
-    rng = MersenneTwister(263)
-    IM = SKFR.get_imputed_matrix(EURtrue, nclusters; rng=rng)
-    @time (classout1, center1, selectedvec1, WSSval1, TSSval1) = SKFR.sparsekmeans1(IM, 30);
-    # @btime (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1($ISM, 30);
-    @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30);        
-    @test classout1 == classout1_
-    @test all(center1 .≈ center1_)
-    @test all(selectedvec1 .== selectedvec1_)
-    @test WSSval1 ≈ WSSval1_
-    @test TSSval1 ≈ TSSval1_
+# @testset "StackedSnpArray" begin
+#     EUR = SnpArray(SnpArrays.datadir("EUR_subset.bed")) # No missing
+#     EURfirsthalf = SnpArrays.filter(SnpArrays.datadir("EUR_subset"), 1:size(EUR, 1), 1:(size(EUR, 2) ÷ 2); des="EUR_subset_1")
+#     EURsecondhalf = SnpArrays.filter(SnpArrays.datadir("EUR_subset"), 1:size(EUR, 1), (size(EUR, 2) ÷ 2 + 1):(size(EUR, 2)); des="EUR_subset_2")
+#     EUR = SnpArray(SnpArrays.datadir("EUR_subset.bed")) # No missing
+#     EURtrue = convert(Matrix{Float64}, EUR, model=ADDITIVE_MODEL, center=false, scale=false)
+#     EUR_stacked = StackedSnpArray([EURfirsthalf, EURsecondhalf])
+#     nclusters = 3
+#     rng = MersenneTwister(263)
+#     ISM = SKFR.get_imputed_matrix(EUR_stacked, nclusters; rng=rng)
+#     rng = MersenneTwister(263)
+#     IM = SKFR.get_imputed_matrix(EURtrue, nclusters; rng=rng)
+#     @time (classout1, center1, selectedvec1, WSSval1, TSSval1) = SKFR.sparsekmeans1(IM, 30);
+#     # @btime (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1($ISM, 30);
+#     @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30);        
+#     @test classout1 == classout1_
+#     @test all(center1 .≈ center1_)
+#     @test all(selectedvec1 .== selectedvec1_)
+#     @test WSSval1 ≈ WSSval1_
+#     @test TSSval1 ≈ TSSval1_
 
-    ISM = SKFR.ImputedSnpMatrix{Float64}(EUR, nclusters; rng=rng)
-    @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30);  
-    @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30);  
-    SKFR.reinitialize!(ISM)
-    @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30; squares=false);  
-    SKFR.reinitialize!(ISM)
-    @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30; squares=false);     
+#     ISM = SKFR.ImputedSnpMatrix{Float64}(EUR, nclusters; rng=rng)
+#     @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30);  
+#     @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30);  
+#     SKFR.reinitialize!(ISM)
+#     @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30; squares=false);  
+#     SKFR.reinitialize!(ISM)
+#     @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30; squares=false);     
     
-    rm("EUR_subset_1.bed")
-    rm("EUR_subset_1.fam")
-    rm("EUR_subset_1.bim")
+#     rm("EUR_subset_1.bed")
+#     rm("EUR_subset_1.fam")
+#     rm("EUR_subset_1.bim")
 
-    rm("EUR_subset_2.bed")
-    rm("EUR_subset_2.fam")
-    rm("EUR_subset_2.bim")
-end
+#     rm("EUR_subset_2.bed")
+#     rm("EUR_subset_2.fam")
+#     rm("EUR_subset_2.bim")
+# end
 
 
 

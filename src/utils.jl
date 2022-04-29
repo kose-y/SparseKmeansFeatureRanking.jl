@@ -419,6 +419,54 @@ function get_centers!(X::ImputedStackedSnpMatrix{T}) where T <: Real
 end
 
 """
+    filter_aims(src, X, v; des=src * ".$(length(v))aims")
+Filters the plink file with filename `src`.bed with the AIM list `v`. 
+"""
+function filter_aims(src::AbstractString, X::ImputedSnpMatrix, v::Vector{<:Integer};
+    des=src * ".$(length(v))aims")
+    aims = sort(v)
+    s = X.data
+    n, p = size(s)
+    sampleidx = trues(n)
+    SnpArrays.filter(src, trues(n), aims; des = des)
+end
+
+"""
+    get_freq(freq, denom, s, k, clusters)
+Get first-allele frequency (in the order of appearance on the bim file) of each cluster. 
+"""
+function get_freq!(freq::AbstractMatrix{T}, denom::AbstractMatrix{T}, s::SnpArray, k::Integer, 
+    clusters::Vector{Int}) where T
+    n, p = size(s)
+    fill!(freq, zero(T))
+    @tturbo for j in 1:p, i in n
+        ip3 = i + 3
+        v = ((s.data)[ip3 >> 2, j] >> ((ip3 & 0x03) << 1)) & 0x03
+        nanv = (v == 0x01)
+        v = (v > 0x01) ? T(v - 0x01) : T(v)
+        v = !nanv * v
+        for c in 1:k
+            freq[c, j] += (clusters[i] == c) * v
+            denom[c, j] += (clusters[i] == c) * (!nanv * 2one(T))
+        end
+    end
+    freq ./= denom
+end
+function get_freq!(freq::AbstractMatrix{T}, denom::AbstractMatrix{T}, X::ImputedSnpMatrix{T}) where T
+    get_freq!(freq, denom, X.data, size(X.centers, 2), X.clusters)
+end
+function get_freq(s::SnpArray, k::Integer, clusters::Vector{Int})
+    freq = Matrix{T}(undef, k, p)
+    denom = Matrix{T}(undef, k, p)
+    get_freq!(freq, denom, s, k, clusters)
+end
+function get_freq(X::ImputedSnpMatrix{T})
+    freq = Matrix{T}(undef, k, p)
+    denom = Matrix{T}(undef, k, p)
+    get_freq!(freq, denom, X)
+end
+
+"""
 Distances from row s. 
 """
 function dists_from_single_row!(dists::Matrix{T}, X::AbstractMatrix{T}, s::Int) where T

@@ -439,7 +439,7 @@ function get_freq!(freq::AbstractMatrix{T}, denom::AbstractMatrix{T}, s::SnpArra
     clusters::Vector{Int}) where T
     n, p = size(s)
     fill!(freq, zero(T))
-    @tturbo for j in 1:p, i in n
+    @tturbo for j in 1:p, i in 1:n
         ip3 = i + 3
         v = ((s.data)[ip3 >> 2, j] >> ((ip3 & 0x03) << 1)) & 0x03
         nanv = (v == 0x01)

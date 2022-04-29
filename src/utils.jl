@@ -419,7 +419,7 @@ function get_centers!(X::ImputedStackedSnpMatrix{T}) where T <: Real
 end
 
 """
-    filter_aims(src, X, v; des=src * ".$(length(v))aims")
+    filter_aims(src, X, v; des)
 Filters the plink file with filename `src`.bed with the AIM list `v`. 
 """
 function filter_aims(src::AbstractString, X::ImputedSnpMatrix, v::Vector{<:Integer};
@@ -432,7 +432,7 @@ function filter_aims(src::AbstractString, X::ImputedSnpMatrix, v::Vector{<:Integ
 end
 
 """
-    get_freq(freq, denom, s, k, clusters)
+    get_freq!(freq, denom, s, k, clusters)
 Get first-allele frequency (in the order of appearance on the bim file) of each cluster. 
 """
 function get_freq!(freq::AbstractMatrix{T}, denom::AbstractMatrix{T}, s::SnpArray, k::Integer, 

@@ -456,11 +456,14 @@ function get_freq!(freq::AbstractMatrix{T}, denom::AbstractMatrix{T}, X::Imputed
     get_freq!(freq, denom, X.data, size(X.centers, 2), X.clusters)
 end
 function get_freq(s::SnpArray, k::Integer, clusters::Vector{Int})
+    n, p = size(s)
     freq = Matrix{Float64}(undef, k, p)
     denom = Matrix{Float64}(undef, k, p)
     get_freq!(freq, denom, s, k, clusters)
 end
 function get_freq(X::ImputedSnpMatrix{T}) where T
+    n, p = size(X)
+    k = size(X.centers, 2)
     freq = Matrix{T}(undef, k, p)
     denom = Matrix{T}(undef, k, p)
     get_freq!(freq, denom, X)

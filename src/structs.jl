@@ -241,6 +241,16 @@ function ImputedSnpMatrix{T}(data::AbstractSnpArray, k::Int; renormalize=true, i
     return r
 end
 
+function ImputedSnpMatrix{T}(path::AbstractString, k::Int; renormalize=true, initclass=true, 
+    fixed_normalization=true,
+    rng=Random.GLOBAL_RNG,
+    model=ADDITIVE_MODEL) where {T <: Real}
+    ImputedSnpMatrix{T}(SnpArray(path), k; renormalize=renormalize, initclass=initclass,
+        fixed_normalization=fixed_normalization,
+        rng=Random.GLOBAL_RNG,
+        model=ADDITIVE_MODEL)
+end
+
 function reinitialize!(X::AbstractImputedMatrix{T}; rng=Random.GLOBAL_RNG) where T
     n, p = size(X)
     X.centers_stable .= X.avg

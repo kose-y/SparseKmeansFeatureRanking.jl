@@ -9,7 +9,6 @@ using Random
 include("structs.jl")
 include("utils.jl")
 include("sparse.jl")
-include("sparsekpod.jl")
-include("sparsepermute.jl")
+# include("sparsepermute.jl")
 
 end

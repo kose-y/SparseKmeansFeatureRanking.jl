@@ -1,4 +1,7 @@
-
+"""
+    compute_μ_σ!(X::AbstractImputedMatrix)
+Compute feature-by-feature means and standard deviations of the matrix `X`.
+"""
 function compute_μ_σ!(A::AbstractImputedMatrix{T}) where T
     n, p = size(A)
     A.μ .= zero(T)
@@ -87,12 +90,16 @@ function get_distances_to_center!(X::AbstractImputedMatrix{T}, selectedvec::Abst
     X.distances
 end
 
+"""
+    get_distances_to_center!(X, selectedvec=1:size(X, 2))
+Compute distance of sample `i` to cluster `kk`. 
+"""
 function get_distances_to_center!(X::ImputedMatrix{T}, selectedvec::AbstractVector{Int}=1:size(X, 2)) where T
     # TODO: skip non-selected variables
     n, p = size(X)
     k = size(X.centers, 2)
     fill!(X.distances, zero(T))
-    @assert X.renormalize "X.renormalize should be true"
+    @assert X.renormalize "X.renormalize must be true"
     @tullio X.distances[i, kk] = @inbounds begin
         v = X.data[i, selectedvec[j]]
         nanv = isnan(v)
@@ -109,7 +116,7 @@ function get_distances_to_center!(X::ImputedSnpMatrix{T}, selectedvec::AbstractV
     n, p = size(X)
     k = size(X.centers, 2)
     fill!(X.distances, zero(T))
-    @assert X.renormalize "X.renormalize should be true"
+    @assert X.renormalize "X.renormalize must be true"
     fill!(X.distances_tmp, zero(T))
     @threads for t in 1:nthreads()
         jj = t
@@ -164,6 +171,7 @@ end
 
 """ 
     get_clusters!(X, center)
+Compute the closest cluster from each sample to `X.clusters`. 
 """
 function get_clusters!(X::AbstractImputedMatrix{T}) where T
     n, p = size(X)
@@ -200,10 +208,8 @@ function get_clusters!(X::AbstractImputedMatrix{T}) where T
 end
 
 """
-
-- centers: p x k
-- X: n x p
-- class: length-n
+    get_centers!(X)
+Compute each of the cluster center for each feature to `X.centers_tmp`.
 """
 function get_centers!(X::AbstractImputedMatrix{T}) where T <: Real
     n, p = size(X)
@@ -352,7 +358,8 @@ function get_freq(X::ImputedSnpMatrix{T}) where T
 end
 
 """
-Distances from row s. 
+    dists_from_single_row!(dists, X, s)
+Distances of each sample from row s, filled in `dists`.
 """
 function dists_from_single_row!(dists::Matrix{T}, X::AbstractMatrix{T}, s::Int) where T
     n, p = size(X)
@@ -406,8 +413,8 @@ function dists_from_single_row!(dists::Matrix{T}, X::ImputedSnpMatrix{T}, s::Int
 end
 
 """
-
-- dists: n x k. 
+    dist_from_rows!(dists, X, iseeds)
+distances from each row, for each `iseed` in `initclass!`.
 """
 function dists_from_rows!(dists::Array{T, 3}, X::AbstractMatrix{T}, iseeds::Vector{Int}) where T
     n, p = size(X)

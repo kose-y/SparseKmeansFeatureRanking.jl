@@ -1,26 +1,29 @@
 
 """
-    sparsekmeans1(X, class::Vector{Int}, classes::Int, sparsity::Int)
+    sparsekmeans1(X::AbstractImputedMatrix{T}, sparsity::Int; 
+    normalize=!X.renormalize, max_iter=1000, fast_impute=true, squares=true)
 
 Implements sparse kmeans clustering. The variable class should
 enter with an initial guess of the classifications.
 
 # Input:
 
-* `X`: n by p AbstractImputedMatrix
-* `sparsity`: sparsity level (total nonzeros)
-* `fast_impute`: good only if used via `sparsekpod` function. 
+* `X`: `n` by `p` `AbstractImputedMatrix``
+* `sparsity`: Sparsity level (total nonzeros)
+* `normalize`: Normalize the input matrix before the run. Must be `false` if renormalization is done on-the-fly through `AbstractImputedMatrix`.
+* `max_iter`: Maximum number of iterations
+* `fast_impute`: Update cluster centers each iteration
+* `squares`: Also return within-cluster sum of squares and total sum of squares
 
 # Ouptut: 
-
-* Class labels
-* class centers (p by k)
-* informative feature indices (vector).
-* within-cluster sum of squares (WSS), a vector.
-* total sum of squares (TSS)
+* `X.clusters`: Cluster labels for each sample
+* `X.centers`: Cluster centers (p by k)
+* `selectedvec: Informative feature indices (vector).
+* `WSSVal`: within-cluster sum of squares (WSS), a vector. `nothing` if `squares==false`
+* `TSSval`: total sum of squares (TSS). `nothing` if `squares==false`.
 """
 function sparsekmeans1(X::AbstractImputedMatrix{T}, sparsity::Int; 
-    normalize::Bool=!X.renormalize, max_iter=Inf, fast_impute=false, squares=true) where T <: Real
+    normalize::Bool=!X.renormalize, max_iter=1000, fast_impute=true, squares=true) where T <: Real
 
     begin # initialization
         n, p = size(X)
@@ -50,27 +53,15 @@ function sparsekmeans1(X::AbstractImputedMatrix{T}, sparsity::Int;
             if cnt >= max_iter
                 break
             end
-            # if cnt > 0
-            #     get_centers!(X)
-            # end
-            # compute the sparsity criterion
-            X.centers .= X.centers_tmp
-            # !any(isnan.(X.centers))
+            X.centers .= X.centers_tmp # load full cluster centers 
             @tullio (X.criterion)[j] = (X.members)[kk] * (X.centers)[j, kk] ^ 2
-            # for j = 1:p # compute the sparsity criterion
-            #     X.criterion[j] = 0
-            #     for kk = 1:k
-            #         X.criterion[j] = X.criterion[j] + X.members[kk] * X.centers[j, kk] ^ 2
-            #     end
-            # end
-            # Gather the criterion to the master node
             begin 
                 J = partialsortperm!(idx, X.criterion, 1:sparsity, rev=true)
                 nonselected = setdiff(wholevec, J) # this one allocates.
                 fill!(@view(X.centers[nonselected, :]), zero(T))
                 #center[:, J] = zeros(length(J),classes)
                 selectedvec .= J
-                if fast_impute
+                if fast_impute # Update cluster centers for imputation every iteration.
                     @tturbo X.clusters_stable .= X.clusters
                     @tturbo X.centers_stable .= X.μ .+ X.centers .* X.σ
                 end
@@ -85,7 +76,7 @@ function sparsekmeans1(X::AbstractImputedMatrix{T}, sparsity::Int;
     # now calculating the WSS and TSS; used in the permutation test and sparse kpod
 
     nth = nthreads()
-    if squares 
+    if squares # Compute WSS
         WSSval = zeros(T, k)
         for j in 1:p
             for i in 1:n
@@ -98,7 +89,7 @@ function sparsekmeans1(X::AbstractImputedMatrix{T}, sparsity::Int;
     end
     # WSSval = sum(WSSval; dims=2)[:]
 
-    if squares 
+    if squares # Compute TSS
         TSSparts = zeros(T, nth)
         @threads for t in 1:nth
             j = t
@@ -119,29 +110,30 @@ function sparsekmeans1(X::AbstractImputedMatrix{T}, sparsity::Int;
 end
 
 """
-    sparsekmeans2(X, class::Vector{Int}, classes::Int, sparsity::Int)
+    sparsekmeans2(X::AbstractImputedMatrix{T}, sparsity::Int; 
+    normalize=!X.renormalize, max_iter=1000, fast_impute=true, squares=true)
 
 Implements sparse kmeans clustering and feature selection within
-each class. The variable class should enter with an initial guess of
-the classifications.
+each class. 
 
 # Input:
 
-* `X`: p by n.
-* `class`: initial class, a vector.
-* `classes`: number of classes
-* `sparsity`: sparsity level (nonzeros per class)
+* `X`: `n` by `p` `AbstractImputedMatrix``
+* `sparsity`: Sparsity level (total nonzeros)
+* `normalize`: Normalize the input matrix before the run. Must be `false` if renormalization is done on-the-fly through `AbstractImputedMatrix`.
+* `max_iter`: Maximum number of iterations
+* `fast_impute`: Update cluster centers each iteration
+* `squares`: Also return within-cluster sum of squares and total sum of squares
 
 # Ouptut: 
-
-* Class labels
-* class centers (p by k)
-* informative feature indices (vector).
-* within-cluster sum of squares (WSS), a vector.
-* total sum of squares (TSS)
+* `X.clusters`: Cluster labels for each sample
+* `X.centers`: Cluster centers (p by k)
+* `selectedvec: Informative feature indices (vector).
+* `WSSVal`: within-cluster sum of squares (WSS), a vector. `nothing` if `squares==false`
+* `TSSval`: total sum of squares (TSS). `nothing` if `squares==false`.
 """
 function sparsekmeans2(X::AbstractImputedMatrix{T}, sparsity::Int;
-    normalize::Bool=!X.renormalize, fast_impute=false, squares=true) where T <: Real
+    normalize::Bool=!X.renormalize, max_iter=1000, fast_impute=true, squares=true) where T <: Real
   
     (n, p) = size(X)
     k = classes(X)
@@ -159,7 +151,11 @@ function sparsekmeans2(X::AbstractImputedMatrix{T}, sparsity::Int;
     switched = true
     get_centers!(X)
     idx = Array{Int}(undef, length(X.criterion))
+    cnt = 0
     while switched # iterate until class assignments stabilize
+        if cnt >= max_iter
+            break
+        end
         X.centers .= X.centers_tmp
         # get_centers!(X, selectedvec_)
         for kk = 1:k 
@@ -171,16 +167,17 @@ function sparsekmeans2(X::AbstractImputedMatrix{T}, sparsity::Int;
             end
         end
         selectedvec_ = sort!(unique(selectedvec[:]))
-        if fast_impute
+        if fast_impute # Update cluster centers for imputation every iteration.
             @tturbo X.clusters_stable .= X.clusters
             @tturbo X.centers_stable .= X.μ .+ X.centers .* X.σ
         end
         get_distances_to_center!(X, selectedvec_)
         _, switched = get_clusters!(X)
+        cnt += 1
     end
 
     nth = nthreads()
-    if squares 
+    if squares # Compute WSS
         WSSval = zeros(T, k)
         for j in 1:p
             for i in 1:n
@@ -193,7 +190,7 @@ function sparsekmeans2(X::AbstractImputedMatrix{T}, sparsity::Int;
     end
     # WSSval = sum(WSSval; dims=2)[:]
 
-    if squares 
+    if squares # Compute TSS
         TSSparts = zeros(T, nth)
         @threads for t in 1:nth
             j = t
@@ -213,6 +210,29 @@ function sparsekmeans2(X::AbstractImputedMatrix{T}, sparsity::Int;
     return (X.clusters, X.centers,selectedvec,WSSval,TSSval)
 end
 
+"""
+    sparsekmeans_repeat(X::AbstractImputedMatrix{T}, sparsity::Int; 
+    normalize=!X.renormalize, ftn = spareskmeans1, iter=20, max_inner_iter=20)
+
+Repeat sparse k-means clustering `iter` times, and choose the best one, where the WSS is the lowest.
+
+# Input:
+
+* `X`: `n` by `p` `AbstractImputedMatrix``
+* `sparsity`: Sparsity level (total nonzeros)
+* `normalize`: Normalize the input matrix before each run of inner function. Must be `false` if renormalization is done on-the-fly through `AbstractImputedMatrix`.
+* `ftn`: Inner SKFR function (`sparsekmeans1` or `sparsekmeans2`)
+* `max_iter`: Maximum number of iterations
+* `max_inner_iter`: Maximum number of iterations for each call of `ftn`.
+
+# Ouptut: 
+* `X.bestclusters`: Best cluster labels for each sample
+* `X.bestcenters`: Best cluster centers (p by k)
+* `selectedvec: Informative feature indices (vector).
+* `WSS`: within-cluster sum of squares (WSS), a vector.
+* `TSS`: total sum of squares (TSS).
+* `fit`: `1 - sum(WSS)/TSS`.
+"""
 function sparsekmeans_repeat(X::AbstractImputedMatrix{T}, sparsity::Int;
     normalize::Bool=!X.renormalize, ftn = sparsekmeans1, iter::Int = 20, max_inner_iter=20) where T <: Real
     n, p = size(X)
@@ -244,6 +264,26 @@ function sparsekmeans_repeat(X::AbstractImputedMatrix{T}, sparsity::Int;
     return (X.bestclusters, X.bestcenters, selectedvec, WSS, TSS, fit)
 end
 
+"""
+    sparsekmeans_path(X::AbstractImputedMatrix{T}, sparsity_list::Vector{Int}; 
+    normalize=!X.renormalize, ftn = spareskmeans1, iter=5, max_inner_iter=20)
+
+Repeat sparse k-means clustering `iter` times with sparsity of `sparsity_list[1]`, and choose the best one. 
+Then, run SKFR for each value of `sparsity_list[2:end]` once, warm-starting with the previous cluster assignment.
+
+# Input:
+
+* `X`: `n` by `p` `AbstractImputedMatrix``
+* `sparsity`: Sparsity level (total nonzeros)
+* `normalize`: Normalize the input matrix before each run of inner function. Must be `false` if renormalization is done on-the-fly through `AbstractImputedMatrix`.
+* `ftn`: Inner SKFR function (`sparsekmeans1` or `sparsekmeans2`)
+* `max_iter`: Maximum number of iterations
+* `max_inner_iter`: Maximum number of iterations for each call of `ftn`.
+
+# Ouptut: 
+* `bestclusters`: Cluster assignment for each of the value in `sparsity_list`, an `n` x `length(sparsity_list)` matrix.
+* `selectedvecs`: Selected features for each value in `sparsity_list`, a `Vector{Vector{Int}}`.
+"""
 function sparsekmeans_path(X::AbstractImputedMatrix{T}, sparsity_list = Vector{Int};
     normalize::Bool=!X.renormalize, ftn = sparsekmeans1, iter::Int = 5, max_inner_iter=20) where T <: Real
     n, p = size(X)

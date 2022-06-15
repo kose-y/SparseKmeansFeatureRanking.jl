@@ -1,38 +1,44 @@
 abstract type AbstractImputedMatrix{T} <: AbstractMatrix{T} end
 
 """
-    ImputedMatrix{T}(data, k)
+    ImputedMatrix{T}(data::AbstractMatrix{T}, k::Int; 
+    renormalize=true, 
+    initclass=true, 
+    rng=Random.GLOBAL_RNG,
+    fixed_normalization=true)
 
 Structure for SKFR. 
 
-# members
-
-- `data`: Data matrix (n x p) with `NaN`s for missing values
-- `clusters`: cluster labels (length-n Int)
-- `centers`: cluster centers (p x k)
-- `members`: Number of members of each cluster (length-k Int)
-- `criterion`: cluster criterion (length-p T)
+# Input
+- `data`: raw data matrix 
+- `k`: number of clusters
+- `renormalize`: whether to compute normalization lazily
+- `initclass`: whether to initialize the clusters on its creation
+- `rng`: random number generator.
+- `fixed_normalization`: If `true`, means and standard deviations 
+    for each feature is pre-computed based on the values disregarding missing values. 
+    Normalization is not to be updated.
 """
 mutable struct ImputedMatrix{T} <: AbstractImputedMatrix{T}
-    data::Matrix{T}
-    clusters::Vector{Int}
-    clusters_tmp::Vector{Int}
-    clusters_stable::Vector{Int}
-    centers::Matrix{T}
-    centers_stable::Matrix{T}  
-    avg::T  
-    bestclusters::Vector{Int}
-    bestcenters::Matrix{T}
-    centers_tmp::Matrix{T}
-    members::Vector{Int}
-    criterion::Vector{T}
-    distances::Matrix{T}
-    distances_tmp::Array{T, 3}
-    μ::Vector{T}
-    σ::Vector{T}
-    switched::BitVector
-    renormalize::Bool
-    fixed_normalization::Bool
+    data::Matrix{T} # Data matrix (n x p) with `NaN`s for missing values
+    clusters::Vector{Int} # cluster labels (length-n Int)
+    clusters_tmp::Vector{Int} # temp storage for clusters
+    clusters_stable::Vector{Int} # "stable" cluster assignment for imputation
+    centers::Matrix{T} # cluster centers
+    centers_stable::Matrix{T} # "stable" cluster centers for imputation
+    avg::T  # average of all the entries of the input matrix, disregarding missing values.
+    bestclusters::Vector{Int} # best cluster assignment for `sparsekmeans_repeat`.
+    bestcenters::Matrix{T} # best cluster centers for `sparsekmeans_repeat`
+    centers_tmp::Matrix{T} # all the cluster centers, no variables zeroed out. 
+    members::Vector{Int} # number of members for each cluster
+    criterion::Vector{T} # information criterion for each variable
+    distances::Matrix{T} # distance to cluster centers
+    distances_tmp::Array{T, 3} # temporary storage for distance computation
+    μ::Vector{T} # variable means for normalization
+    σ::Vector{T} # variable stds for normalization
+    switched::BitVector # boolean vector for each feature
+    renormalize::Bool # whether to compute normalization on-the-fly
+    fixed_normalization::Bool # if true, do not recompute `μ` and `σ`.
 end
 
 mutable struct ImputedSnpMatrix{T} <: AbstractImputedMatrix{T}
@@ -116,6 +122,7 @@ function ImputedMatrix{T}(data::AbstractMatrix{T}, k::Int; renormalize=true,
     centers_tmp = zeros(T, p, k)
     bestclusters = Vector{Int}(undef, n)
     bestcenters = zeros(T, p, k)
+
     # set up mean imputation
     fill!(clusters, 1)
     clusters_stable = copy(clusters)
@@ -153,9 +160,10 @@ function ImputedMatrix{T}(data::AbstractMatrix{T}, k::Int; renormalize=true,
 
     r = ImputedMatrix{T}(data, clusters, clusters_tmp, clusters_stable, centers, centers_stable, avg,
         bestclusters, bestcenters, centers_tmp, members, criterion, distances, distances_tmp, μ, σ, switched, renormalize, fixed_normalization)
-    if initclass
+    if initclass # initialize clusters
         r.clusters = initclass!(r.clusters, r, k; rng=rng)
     end
+    # populate μ and σ for on-the-fly normalization
     compute_μ_σ!(r)
     get_centers!(r)
 
@@ -175,6 +183,7 @@ function ImputedSnpMatrix{T}(data::AbstractSnpArray, k::Int; renormalize=true, i
     bestclusters = Vector{Int}(undef, n)
     bestcenters = zeros(T, p, k)
     centers_tmp = zeros(T, p, k)
+
     # set up mean imputation
     fill!(clusters, 1)
     clusters_stable = copy(clusters)
@@ -191,33 +200,13 @@ function ImputedSnpMatrix{T}(data::AbstractSnpArray, k::Int; renormalize=true, i
         v = (v > 0x01) ? T(v - 0x01) : T(v)
         s += !nanv * v
         cnt += !nanv * 1
-        # v = nanv * X.centers_stable[j, X.clusters_stable[i]] + !nanv * v
-        # v = (v - X.μ[j]) / ((X.σ[j] < eps()) + X.σ[j])
-        # for c in 1:size(X.centers_tmp, 2)
-        #     X.centers_tmp[j, c] += (X.clusters[i] == c) * v
-        # end
     end
-    # @threads for t in 1:nthreads()
-    #     j = t 
-    #     @inbounds while j <= p
-    #         for i in 1:n
-    #             v = SnpArrays.convert(T, getindex(data, i, j), model)
-    #             if isnan(v)
-    #                 continue
-    #             end
-    #             s_[t] += v
-    #             cnt_[t] += 1
-    #         end
-    #         j += nthreads()
-    #     end
-    # end
-    # s = sum(s_)
-    # cnt = sum(cnt_)
 
     avg = s / cnt
     centers .= avg
     centers_stable .= centers
-    # Initialization step
+
+    # Initialize structure
     members = zeros(Int, k)
     criterion = zeros(T, p)
     distances = zeros(T, n, k)
@@ -230,7 +219,7 @@ function ImputedSnpMatrix{T}(data::AbstractSnpArray, k::Int; renormalize=true, i
     MatrixType = typeof(data) <: SnpArray ? ImputedSnpMatrix : ImputedStackedSnpMatrix
     r = MatrixType{T}(data, model, clusters, clusters_tmp, clusters_stable, centers, centers_stable, avg,
         bestclusters, bestcenters, centers_tmp, members, criterion, distances, distances_tmp, μ, σ, switched, renormalize, fixed_normalization)
-    if initclass
+    if initclass # initialize clusters
         initclass!(r.clusters, r, k; rng=rng)
     end
     compute_μ_σ!(r)
@@ -251,6 +240,10 @@ function ImputedSnpMatrix{T}(path::AbstractString, k::Int; renormalize=true, ini
         model=ADDITIVE_MODEL)
 end
 
+"""
+    reinitialize!(X; rng=Random.GLOBAL_RNG)
+Reinitialize cluster assignments.
+"""
 function reinitialize!(X::AbstractImputedMatrix{T}; rng=Random.GLOBAL_RNG) where T
     n, p = size(X)
     X.centers_stable .= X.avg
@@ -261,6 +254,10 @@ function reinitialize!(X::AbstractImputedMatrix{T}; rng=Random.GLOBAL_RNG) where
     return X
 end
 
+"""
+    Base.getindex(X, i, j)
+Compute the value of `X[i, j]`. 
+"""
 @inline function Base.getindex(A::AbstractImputedMatrix{T}, i::Int, j::Int)::T where {T}
     r = getindex_raw(A, i, j)
     if isnan(r)
@@ -275,6 +272,10 @@ end
     r
 end
 
+"""
+    Base.setindex!(X, v, i, j)
+Directly set the value in `X.data[i, j]`.
+"""
 @inline function Base.setindex!(A::AbstractImputedMatrix{T}, v::T, i::Int, j::Int) where T
     A.data[i, j] = v
 end
@@ -283,6 +284,10 @@ end
     @error "setindex!() on ImputedSnpMatrix is not allowed."
 end
 
+"""
+    getindex_raw(X, i, j)
+Get the raw data in the index `(i, j)`.
+"""
 @inline function getindex_raw(A::AbstractImputedMatrix{T}, i::Int, j::Int)::T where T
     Base.getindex(A.data, i, j)
 end    

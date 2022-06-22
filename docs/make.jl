@@ -17,6 +17,6 @@ makedocs(;
 )
 
 deploydocs(;
-    repo="github.com/OpenMendel/SKFR.jl",
+    repo="github.com/kose-y/SKFR.jl",
     devbranch = "master"
 )

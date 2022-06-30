@@ -1,4 +1,5 @@
 # SKFR.jl
+[![](https://img.shields.io/badge/docs-dev-blue.svg)
 
 Sparse K-means via Feature Ranking
 

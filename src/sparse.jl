@@ -61,7 +61,8 @@ function sparsekmeans1(X::AbstractImputedMatrix{T}, sparsity::Int;
                 X.criterion_block[convert(Int, ceil(j / X.blocksize))] += X.criterion[j]
             end
             begin 
-                Jblock = partialsortperm!(blockidx, X.criterion_block, 1:sparsity, rev=true)
+                Jblock = partialsortperm!(blockidx, X.criterion_block, 
+                    1:(min(sparsity, length(X.criterion_block))), rev=true)
                 @inbounds for jblock in eachindex(Jblock)
                     for k in 1:X.blocksize
                         j = (Jblock[jblock] - 1) * (X.blocksize) + k

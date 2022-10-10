@@ -156,12 +156,12 @@ function ImputedMatrix{T}(data::AbstractMatrix{T}, k::Int;
     distances = zeros(T, n, k)
     distances_tmp = zeros(T, n, k, nthreads())
 
-    μ = zeros(T, p)
-    σ = zeros(T, p)
+    _μ = zeros(T, p)
+    _σ = zeros(T, p)
     switched = falses(n)
 
     r = ImputedMatrix{T}(data, clusters, clusters_tmp, clusters_stable, centers, centers_stable, avg,
-        bestclusters, bestcenters, centers_tmp, members, criterion, distances, distances_tmp, μ, σ, switched, renormalize, fixed_normalization)
+        bestclusters, bestcenters, centers_tmp, members, criterion, distances, distances_tmp, _μ, _σ, switched, renormalize, fixed_normalization)
     if initclass # initialize clusters
         r.clusters = initclass!(r.clusters, r, k; rng=rng)
     end
@@ -221,13 +221,13 @@ function ImputedSnpMatrix{T}(data::AbstractSnpArray, k::Int;
     distances = zeros(T, n, k)
     distances_tmp = zeros(T, n, k, nthreads())
 
-    μ = zeros(T, p)
-    σ = ones(T, p)
+    _μ = zeros(T, p)
+    _σ = ones(T, p)
     switched = falses(n)
     
     MatrixType = typeof(data) <: SnpArray ? ImputedSnpMatrix : ImputedStackedSnpMatrix
     r = MatrixType{T}(data, model, clusters, clusters_tmp, clusters_stable, centers, centers_stable, avg,
-        bestclusters, bestcenters, centers_tmp, members, criterion, distances, distances_tmp, μ, σ, switched, renormalize, fixed_normalization)
+        bestclusters, bestcenters, centers_tmp, members, criterion, distances, distances_tmp, _μ, _σ, switched, renormalize, fixed_normalization)
     if initclass # initialize clusters
         initclass!(r.clusters, r, k; rng=rng)
     end

@@ -110,10 +110,12 @@ function get_imputed_matrix(data, k::Int; renormalize=true,
     end
 end
 
-function ImputedMatrix{T}(data::AbstractMatrix{T}, k::Int; renormalize=true, 
+function ImputedMatrix{T}(data::AbstractMatrix{T}, k::Int;  
+    renormalize=true, 
     initclass=true, 
     rng=Random.GLOBAL_RNG,
-    fixed_normalization=true) where {T <: Real}
+    fixed_normalization=true, 
+    μ=nothing, σ=nothing) where {T <: Real}
     n, p = size(data)
     clusters = Vector{Int}(undef, n)
     clusters_tmp = Vector{Int}(undef, n)
@@ -164,17 +166,24 @@ function ImputedMatrix{T}(data::AbstractMatrix{T}, k::Int; renormalize=true,
         r.clusters = initclass!(r.clusters, r, k; rng=rng)
     end
     # populate μ and σ for on-the-fly normalization
-    compute_μ_σ!(r)
+    if μ === nothing
+        compute_μ_σ!(r)
+    else
+        r.μ .= μ
+        r.σ .= σ
+    end
     get_centers!(r)
 
     r.renormalize = renormalize
     return r
 end
 
-function ImputedSnpMatrix{T}(data::AbstractSnpArray, k::Int; renormalize=true, initclass=true, 
+function ImputedSnpMatrix{T}(data::AbstractSnpArray, k::Int; 
+        renormalize=true, initclass=true, 
         fixed_normalization=true,
         rng=Random.GLOBAL_RNG,
-        model=ADDITIVE_MODEL) where {T <: Real}
+        model=ADDITIVE_MODEL,
+        μ=nothing, σ=nothing) where {T <: Real}
     n, p = size(data)
     clusters = Vector{Int}(undef, n)
     clusters_tmp = Vector{Int}(undef, n)
@@ -222,7 +231,12 @@ function ImputedSnpMatrix{T}(data::AbstractSnpArray, k::Int; renormalize=true, i
     if initclass # initialize clusters
         initclass!(r.clusters, r, k; rng=rng)
     end
-    compute_μ_σ!(r)
+    if μ === nothing
+        compute_μ_σ!(r)
+    else
+        r.μ .= μ
+        r.σ .= σ
+    end
     get_centers!(r)
 
 

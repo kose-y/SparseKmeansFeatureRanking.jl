@@ -15,6 +15,7 @@ StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 Tullio = "bc48ee85-29a4-5162-ae0b-a64e1601d4bc"
 
 [compat]
+DelimitedFiles = "1"
 Distances = "0.10"
 LoopVectorization = "0.12"
 Missings = "1"

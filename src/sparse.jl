@@ -23,7 +23,7 @@ enter with an initial guess of the classifications.
 * `TSSval`: total sum of squares (TSS). `nothing` if `squares==false`.
 """
 function sparsekmeans1(X::AbstractImputedMatrix{T}, sparsity::Int; 
-    normalize::Bool=!X.renormalize, max_iter=1000, fast_impute=true, squares=true) where T <: Real
+    normalize::Bool=!X.renormalize, max_iter=1000, fast_impute=true, squares=true, rng=Random.GLOBAL_RNG) where T <: Real
 
     begin # initialization
         n, p = size(X)
@@ -147,7 +147,7 @@ each class.
 * `TSSval`: total sum of squares (TSS). `nothing` if `squares==false`.
 """
 function sparsekmeans2(X::AbstractImputedMatrix{T}, sparsity::Int;
-    normalize::Bool=!X.renormalize, max_iter=1000, fast_impute=true, squares=true) where T <: Real
+    normalize::Bool=!X.renormalize, max_iter=1000, fast_impute=true, squares=true, rng=Random.GLOBAL_RNG) where T <: Real
   
     (n, p) = size(X)
     k = classes(X)
@@ -264,7 +264,7 @@ Repeat sparse k-means clustering `iter` times, and choose the best one, where th
 * `fit`: `1 - sum(WSS)/TSS`.
 """
 function sparsekmeans_repeat(X::AbstractImputedMatrix{T}, sparsity::Int;
-    normalize::Bool=!X.renormalize, ftn = sparsekmeans1, iter::Int = 20, max_inner_iter=20) where T <: Real
+    normalize::Bool=!X.renormalize, ftn = sparsekmeans1, iter::Int = 20, max_inner_iter=20, rng=Random.GLOBAL_RNG) where T <: Real
     n, p = size(X)
     k = classes(X)
     (clusts, centers, selectedvec, WSS, TSS) = ftn(X, sparsity; normalize=normalize, max_iter=max_inner_iter, fast_impute=true)
@@ -275,7 +275,7 @@ function sparsekmeans_repeat(X::AbstractImputedMatrix{T}, sparsity::Int;
     #centers = copy(centerout')
     # Consider dropping this step, or using a lower `max_iter`.
     for i = 2:iter
-        reinitialize!(X)
+        reinitialize!(X; rng=rng)
         # By definition, TSS should be the same across initializations. 
         (newclusts, newcenterout, newselectedvec, newWSS, _) = ftn(X, sparsity; normalize=normalize, max_iter=max_inner_iter, fast_impute=true, squares=true)
         newfit = 1 - (sum(newWSS)/TSS)
@@ -315,14 +315,14 @@ Then, run SKFR for each value of `sparsity_list[2:end]` once, warm-starting with
 * `selectedvecs`: Selected features for each value in `sparsity_list`, a `Vector{Vector{Int}}`.
 """
 function sparsekmeans_path(X::AbstractImputedMatrix{T}, sparsity_list = Vector{Int};
-    normalize::Bool=!X.renormalize, ftn = sparsekmeans1, iter::Int = 5, max_inner_iter=20) where T <: Real
+    normalize::Bool=!X.renormalize, ftn = sparsekmeans1, iter::Int = 5, max_inner_iter=20, rng=Random.GLOBAL_RNG) where T <: Real
     n, p = size(X)
     k = classes(X)
     selectedvecs = Vector{Int}[]
     bestclusters = Matrix{Int}(undef, n, length(sparsity_list))
     @assert issorted(sparsity_list; rev=true) "sparsity list must be in decreasing order"
     bestcluster, bestcenters, selectedvec, WSS, TSS, fit = sparsekmeans_repeat(X, sparsity_list[1]; 
-        normalize=normalize, ftn = ftn, iter = iter, max_inner_iter=max_inner_iter)
+        normalize=normalize, ftn = ftn, iter = iter, max_inner_iter=max_inner_iter, rng=rng)
     push!(selectedvecs, selectedvec)
     bestclusters[:, 1] .= bestcluster
 

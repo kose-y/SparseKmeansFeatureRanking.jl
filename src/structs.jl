@@ -120,7 +120,8 @@ function ImputedMatrix{T}(data::AbstractMatrix{T}, k::Int; blocksize=1,
     renormalize=true, 
     initclass=true, 
     rng=Random.GLOBAL_RNG,
-    fixed_normalization=true) where {T <: Real}
+    fixed_normalization=true, 
+    μ=nothing, σ=nothing) where {T <: Real}
     n, p = size(data)
     clusters = Vector{Int}(undef, n)
     clusters_tmp = Vector{Int}(undef, n)
@@ -162,17 +163,22 @@ function ImputedMatrix{T}(data::AbstractMatrix{T}, k::Int; blocksize=1,
     distances = zeros(T, n, k)
     distances_tmp = zeros(T, n, k, nthreads())
 
-    μ = zeros(T, p)
-    σ = zeros(T, p)
+    _μ = zeros(T, p)
+    _σ = zeros(T, p)
     switched = falses(n)
 
     r = ImputedMatrix{T}(data, clusters, clusters_tmp, clusters_stable, centers, centers_stable, avg,
-        bestclusters, bestcenters, centers_tmp, members, criterion, blocksize, criterion_block, distances, distances_tmp, μ, σ, switched, renormalize, fixed_normalization)
+        bestclusters, bestcenters, centers_tmp, members, criterion, blocksize, criterion_block, distances, distances_tmp, _μ, _σ, switched, renormalize, fixed_normalization)
     if initclass # initialize clusters
         r.clusters = initclass!(r.clusters, r, k; rng=rng)
     end
     # populate μ and σ for on-the-fly normalization
-    compute_μ_σ!(r)
+    if μ === nothing
+        compute_μ_σ!(r)
+    else
+        r.μ .= μ
+        r.σ .= σ
+    end
     get_centers!(r)
 
     r.renormalize = renormalize
@@ -183,7 +189,8 @@ function ImputedSnpMatrix{T}(data::AbstractSnpArray, k::Int; blocksize=1,
         renormalize=true, initclass=true, 
         fixed_normalization=true,
         rng=Random.GLOBAL_RNG,
-        model=ADDITIVE_MODEL) where {T <: Real}
+        model=ADDITIVE_MODEL,
+        μ=nothing, σ=nothing) where {T <: Real}
     n, p = size(data)
     clusters = Vector{Int}(undef, n)
     clusters_tmp = Vector{Int}(undef, n)
@@ -222,8 +229,8 @@ function ImputedSnpMatrix{T}(data::AbstractSnpArray, k::Int; blocksize=1,
     distances = zeros(T, n, k)
     distances_tmp = zeros(T, n, k, nthreads())
 
-    μ = zeros(T, p)
-    σ = ones(T, p)
+    _μ = zeros(T, p)
+    _σ = ones(T, p)
     switched = falses(n)
     
     MatrixType = typeof(data) <: SnpArray ? ImputedSnpMatrix : ImputedStackedSnpMatrix
@@ -232,7 +239,12 @@ function ImputedSnpMatrix{T}(data::AbstractSnpArray, k::Int; blocksize=1,
     if initclass # initialize clusters
         initclass!(r.clusters, r, k; rng=rng)
     end
-    compute_μ_σ!(r)
+    if μ === nothing
+        compute_μ_σ!(r)
+    else
+        r.μ .= μ
+        r.σ .= σ
+    end
     get_centers!(r)
 
 

@@ -221,7 +221,7 @@ function get_centers!(X::AbstractImputedMatrix{T}) where T <: Real
     @threads for t in 1:nthreads()
         j = t
         while j <= p
-            for i in 1:n
+            @inbounds for i in 1:n
                 c = X.clusters[i]
                 X.centers_tmp[j, c] = X.centers_tmp[j, c] + X[i, j]
             end

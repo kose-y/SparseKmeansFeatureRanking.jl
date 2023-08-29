@@ -32,6 +32,8 @@ mutable struct ImputedMatrix{T} <: AbstractImputedMatrix{T}
     centers_tmp::Matrix{T} # all the cluster centers, no variables zeroed out. 
     members::Vector{Int} # number of members for each cluster
     criterion::Vector{T} # information criterion for each variable
+    blocksize::Int
+    criterion_block::Vector{T}
     distances::Matrix{T} # distance to cluster centers
     distances_tmp::Array{T, 3} # temporary storage for distance computation
     μ::Vector{T} # variable means for normalization
@@ -55,6 +57,8 @@ mutable struct ImputedSnpMatrix{T} <: AbstractImputedMatrix{T}
     centers_tmp::Matrix{T}
     members::Vector{Int}
     criterion::Vector{T}
+    blocksize::Int
+    criterion_block::Vector{T}
     distances::Matrix{T}
     distances_tmp::Array{T, 3}
     μ::Vector{T}
@@ -78,6 +82,8 @@ mutable struct ImputedStackedSnpMatrix{T} <: AbstractImputedMatrix{T}
     centers_tmp::Matrix{T}
     members::Vector{Int}
     criterion::Vector{T}
+    blocksize::Int
+    criterion_block::Vector{T}
     distances::Matrix{T}
     distances_tmp::Array{T, 3}
     μ::Vector{T}
@@ -97,20 +103,20 @@ end
     return size(x.centers, 2)
 end
 
-function get_imputed_matrix(data, k::Int; renormalize=true,
+function get_imputed_matrix(data, k::Int; blocksize=1, renormalize=true,
     initclass=true, 
     rng=Random.GLOBAL_RNG,
     fixed_normalization=true, T=Float64)
     if typeof(data) <: AbstractSnpArray
-        ImputedSnpMatrix{T}(data, k; renormalize=renormalize, initclass=initclass, 
+        ImputedSnpMatrix{T}(data, k; blocksize=blocksize, renormalize=renormalize, initclass=initclass, 
             rng=rng, fixed_normalization=fixed_normalization)
     else
-        ImputedMatrix{T}(data, k; renormalize=renormalize, initclass=initclass, 
+        ImputedMatrix{T}(data, k; blocksize=blocksize, renormalize=renormalize, initclass=initclass, 
             rng=rng, fixed_normalization=fixed_normalization)
     end
 end
 
-function ImputedMatrix{T}(data::AbstractMatrix{T}, k::Int;  
+function ImputedMatrix{T}(data::AbstractMatrix{T}, k::Int; blocksize=1, 
     renormalize=true, 
     initclass=true, 
     rng=Random.GLOBAL_RNG,
@@ -153,6 +159,7 @@ function ImputedMatrix{T}(data::AbstractMatrix{T}, k::Int;
     # Initialization step
     members = zeros(Int, k)
     criterion = zeros(T, p)
+    criterion_block = zeros(T, convert(Int, ceil(p / blocksize)))
     distances = zeros(T, n, k)
     distances_tmp = zeros(T, n, k, nthreads())
 
@@ -161,7 +168,7 @@ function ImputedMatrix{T}(data::AbstractMatrix{T}, k::Int;
     switched = falses(n)
 
     r = ImputedMatrix{T}(data, clusters, clusters_tmp, clusters_stable, centers, centers_stable, avg,
-        bestclusters, bestcenters, centers_tmp, members, criterion, distances, distances_tmp, _μ, _σ, switched, renormalize, fixed_normalization)
+        bestclusters, bestcenters, centers_tmp, members, criterion, blocksize, criterion_block, distances, distances_tmp, _μ, _σ, switched, renormalize, fixed_normalization)
     if initclass # initialize clusters
         r.clusters = initclass!(r.clusters, r, k; rng=rng)
     end
@@ -178,7 +185,7 @@ function ImputedMatrix{T}(data::AbstractMatrix{T}, k::Int;
     return r
 end
 
-function ImputedSnpMatrix{T}(data::AbstractSnpArray, k::Int; 
+function ImputedSnpMatrix{T}(data::AbstractSnpArray, k::Int; blocksize=1,
         renormalize=true, initclass=true, 
         fixed_normalization=true,
         rng=Random.GLOBAL_RNG,
@@ -218,6 +225,7 @@ function ImputedSnpMatrix{T}(data::AbstractSnpArray, k::Int;
     # Initialize structure
     members = zeros(Int, k)
     criterion = zeros(T, p)
+    criterion_block = zeros(T, convert(Int, ceil(p / blocksize)))
     distances = zeros(T, n, k)
     distances_tmp = zeros(T, n, k, nthreads())
 
@@ -227,7 +235,7 @@ function ImputedSnpMatrix{T}(data::AbstractSnpArray, k::Int;
     
     MatrixType = typeof(data) <: SnpArray ? ImputedSnpMatrix : ImputedStackedSnpMatrix
     r = MatrixType{T}(data, model, clusters, clusters_tmp, clusters_stable, centers, centers_stable, avg,
-        bestclusters, bestcenters, centers_tmp, members, criterion, distances, distances_tmp, _μ, _σ, switched, renormalize, fixed_normalization)
+        bestclusters, bestcenters, centers_tmp, members, criterion, blocksize, criterion_block, distances, distances_tmp, μ, σ, switched, renormalize, fixed_normalization)
     if initclass # initialize clusters
         initclass!(r.clusters, r, k; rng=rng)
     end

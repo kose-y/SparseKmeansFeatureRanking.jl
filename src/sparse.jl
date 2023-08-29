@@ -23,7 +23,7 @@ enter with an initial guess of the classifications.
 * `TSSval`: total sum of squares (TSS). `nothing` if `squares==false`.
 """
 function sparsekmeans1(X::AbstractImputedMatrix{T}, sparsity::Int; 
-    normalize::Bool=!X.renormalize, max_iter=1000, fast_impute=true, squares=true) where T <: Real
+    normalize::Bool=!X.renormalize, max_iter=1000, fast_impute=true, squares=true, rng=Random.GLOBAL_RNG) where T <: Real
 
     begin # initialization
         n, p = size(X)
@@ -46,6 +46,7 @@ function sparsekmeans1(X::AbstractImputedMatrix{T}, sparsity::Int;
         cnt = 0
         get_centers!(X)
         idx = Array{Int}(undef, length(X.criterion))
+        blockidx = Array{Int}(undef, length(X.criterion_block))
     end
     # println("allocation in init: $r")
     begin
@@ -55,12 +56,25 @@ function sparsekmeans1(X::AbstractImputedMatrix{T}, sparsity::Int;
             end
             X.centers .= X.centers_tmp # load full cluster centers 
             @tullio (X.criterion)[j] = (X.members)[kk] * (X.centers)[j, kk] ^ 2
+            fill!(X.criterion_block, zero(T))
+            @inbounds for j in 1:p
+                X.criterion_block[convert(Int, ceil(j / X.blocksize))] += X.criterion[j]
+            end
             begin 
-                J = partialsortperm!(idx, X.criterion, 1:sparsity, rev=true)
+                Jblock = partialsortperm!(blockidx, X.criterion_block, 
+                    1:(min(sparsity, length(X.criterion_block))), rev=true)
+                @inbounds for jblock in eachindex(Jblock)
+                    for k in 1:X.blocksize
+                        j = (Jblock[jblock] - 1) * (X.blocksize) + k
+                        idx[(jblock - 1) * X.blocksize + k] = j
+                    end
+                end
+                J = @view idx[1:(sparsity * X.blocksize)]
+
                 nonselected = setdiff(wholevec, J) # this one allocates.
                 fill!(@view(X.centers[nonselected, :]), zero(T))
                 #center[:, J] = zeros(length(J),classes)
-                selectedvec .= J
+                selectedvec = intersect(J, wholevec)
                 if fast_impute # Update cluster centers for imputation every iteration.
                     @tturbo X.clusters_stable .= X.clusters
                     @tturbo X.centers_stable .= X.μ .+ X.centers .* X.σ
@@ -133,11 +147,11 @@ each class.
 * `TSSval`: total sum of squares (TSS). `nothing` if `squares==false`.
 """
 function sparsekmeans2(X::AbstractImputedMatrix{T}, sparsity::Int;
-    normalize::Bool=!X.renormalize, max_iter=1000, fast_impute=true, squares=true) where T <: Real
+    normalize::Bool=!X.renormalize, max_iter=1000, fast_impute=true, squares=true, rng=Random.GLOBAL_RNG) where T <: Real
   
     (n, p) = size(X)
     k = classes(X)
-    selectedvec = zeros(Int, k, sparsity)
+    selectedvec = zeros(Int, k, sparsity * X.blocksize)
     wholevec=1:p
     if normalize
         for j = 1:p # normalize each feature
@@ -151,6 +165,7 @@ function sparsekmeans2(X::AbstractImputedMatrix{T}, sparsity::Int;
     switched = true
     get_centers!(X)
     idx = Array{Int}(undef, length(X.criterion))
+    blockidx = Array{Int}(undef, length(X.criterion_block))
     cnt = 0
     while switched # iterate until class assignments stabilize
         if cnt >= max_iter
@@ -160,13 +175,28 @@ function sparsekmeans2(X::AbstractImputedMatrix{T}, sparsity::Int;
         # get_centers!(X, selectedvec_)
         for kk = 1:k 
             if X.members[kk] > 0 # set the smallest center components to 0
-                J = partialsortperm!(idx, X.centers[:, kk] .^ 2 .* X.members[kk], 1:sparsity, rev = true, by = abs)
+                fill!(X.criterion, zero(T))
+                @inbounds for j in 1:p
+                    (X.criterion)[j] += (X.members)[kk] * (X.centers)[j, kk] ^ 2
+                end
+                fill!(X.criterion_block, zero(T))
+                @inbounds for j in 1:p
+                    X.criterion_block[convert(Int, ceil(j / X.blocksize))] += X.criterion[j]
+                end
+                Jblock = partialsortperm!(blockidx, X.criterion_block, 1:sparsity, rev=true)
+                @inbounds for jblock in eachindex(Jblock)
+                    for k in 1:X.blocksize
+                        j = (Jblock[jblock] - 1) * (X.blocksize) + k
+                        idx[(jblock - 1) * X.blocksize + k] = j
+                    end
+                end
+                J = @view idx[1:(sparsity * X.blocksize)]
                 nonselected = setdiff(wholevec, J)
                 fill!(@view(X.centers[nonselected, kk]), zero(T))
                 selectedvec[kk,:] .= J
             end
         end
-        selectedvec_ = sort!(unique(selectedvec[:]))
+        selectedvec_ = intersect(sort!(unique(selectedvec[:])), wholevec)
         if fast_impute # Update cluster centers for imputation every iteration.
             @tturbo X.clusters_stable .= X.clusters
             @tturbo X.centers_stable .= X.μ .+ X.centers .* X.σ
@@ -234,7 +264,7 @@ Repeat sparse k-means clustering `iter` times, and choose the best one, where th
 * `fit`: `1 - sum(WSS)/TSS`.
 """
 function sparsekmeans_repeat(X::AbstractImputedMatrix{T}, sparsity::Int;
-    normalize::Bool=!X.renormalize, ftn = sparsekmeans1, iter::Int = 20, max_inner_iter=20) where T <: Real
+    normalize::Bool=!X.renormalize, ftn = sparsekmeans1, iter::Int = 20, max_inner_iter=20, rng=Random.GLOBAL_RNG) where T <: Real
     n, p = size(X)
     k = classes(X)
     (clusts, centers, selectedvec, WSS, TSS) = ftn(X, sparsity; normalize=normalize, max_iter=max_inner_iter, fast_impute=true)
@@ -245,7 +275,7 @@ function sparsekmeans_repeat(X::AbstractImputedMatrix{T}, sparsity::Int;
     #centers = copy(centerout')
     # Consider dropping this step, or using a lower `max_iter`.
     for i = 2:iter
-        reinitialize!(X)
+        reinitialize!(X; rng=rng)
         # By definition, TSS should be the same across initializations. 
         (newclusts, newcenterout, newselectedvec, newWSS, _) = ftn(X, sparsity; normalize=normalize, max_iter=max_inner_iter, fast_impute=true, squares=true)
         newfit = 1 - (sum(newWSS)/TSS)
@@ -285,14 +315,14 @@ Then, run SKFR for each value of `sparsity_list[2:end]` once, warm-starting with
 * `selectedvecs`: Selected features for each value in `sparsity_list`, a `Vector{Vector{Int}}`.
 """
 function sparsekmeans_path(X::AbstractImputedMatrix{T}, sparsity_list = Vector{Int};
-    normalize::Bool=!X.renormalize, ftn = sparsekmeans1, iter::Int = 5, max_inner_iter=20) where T <: Real
+    normalize::Bool=!X.renormalize, ftn = sparsekmeans1, iter::Int = 5, max_inner_iter=20, rng=Random.GLOBAL_RNG) where T <: Real
     n, p = size(X)
     k = classes(X)
     selectedvecs = Array{Int}[]
     bestclusters = Matrix{Int}(undef, n, length(sparsity_list))
     @assert issorted(sparsity_list; rev=true) "sparsity list must be in decreasing order"
     bestcluster, bestcenters, selectedvec, WSS, TSS, fit = sparsekmeans_repeat(X, sparsity_list[1]; 
-        normalize=normalize, ftn = ftn, iter = iter, max_inner_iter=max_inner_iter)
+        normalize=normalize, ftn = ftn, iter = iter, max_inner_iter=max_inner_iter, rng=rng)
     push!(selectedvecs, selectedvec)
     bestclusters[:, 1] .= bestcluster
 

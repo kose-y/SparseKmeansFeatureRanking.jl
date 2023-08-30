@@ -235,7 +235,7 @@ function ImputedSnpMatrix{T}(data::AbstractSnpArray, k::Int; blocksize=1,
     
     MatrixType = typeof(data) <: SnpArray ? ImputedSnpMatrix : ImputedStackedSnpMatrix
     r = MatrixType{T}(data, model, clusters, clusters_tmp, clusters_stable, centers, centers_stable, avg,
-        bestclusters, bestcenters, centers_tmp, members, criterion, blocksize, criterion_block, distances, distances_tmp, μ, σ, switched, renormalize, fixed_normalization)
+        bestclusters, bestcenters, centers_tmp, members, criterion, blocksize, criterion_block, distances, distances_tmp, _μ, _σ, switched, renormalize, fixed_normalization)
     if initclass # initialize clusters
         initclass!(r.clusters, r, k; rng=rng)
     end

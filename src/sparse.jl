@@ -46,7 +46,7 @@ function sparsekmeans1(X::AbstractImputedMatrix{T}, sparsity::Int;
         cnt = 0
         get_centers!(X)
         idx = Array{Int}(undef, length(X.criterion))
-        blockidx = Array{Int}(undef, length(X.criterion_block))
+        blockidx = Array{Int}(undef, p ÷ X.blocksize)
     end
     # println("allocation in init: $r")
     begin
@@ -61,8 +61,8 @@ function sparsekmeans1(X::AbstractImputedMatrix{T}, sparsity::Int;
                 X.criterion_block[convert(Int, ceil(j / X.blocksize))] += X.criterion[j]
             end
             begin 
-                Jblock = partialsortperm!(blockidx, X.criterion_block, 
-                    1:(min(sparsity, length(X.criterion_block))), rev=true)
+                Jblock = partialsortperm!(blockidx, @view(X.criterion_block[1:p ÷ X.blocksize]), 
+                    1:(min(sparsity, p ÷ X.blocksize)), rev=true)
                 @inbounds for jblock in eachindex(Jblock)
                     for k in 1:X.blocksize
                         j = (Jblock[jblock] - 1) * (X.blocksize) + k
@@ -165,7 +165,7 @@ function sparsekmeans2(X::AbstractImputedMatrix{T}, sparsity::Int;
     switched = true
     get_centers!(X)
     idx = Array{Int}(undef, length(X.criterion))
-    blockidx = Array{Int}(undef, length(X.criterion_block))
+    blockidx = Array{Int}(undef, p ÷ X.blocksize)
     cnt = 0
     while switched # iterate until class assignments stabilize
         if cnt >= max_iter
@@ -183,7 +183,7 @@ function sparsekmeans2(X::AbstractImputedMatrix{T}, sparsity::Int;
                 @inbounds for j in 1:p
                     X.criterion_block[convert(Int, ceil(j / X.blocksize))] += X.criterion[j]
                 end
-                Jblock = partialsortperm!(blockidx, X.criterion_block, 1:sparsity, rev=true)
+                Jblock = partialsortperm!(blockidx, @view(X.criterion_block[1: p ÷ X.blocksize]), 1:min(sparsity, p ÷ X.blocksize), rev=true)
                 @inbounds for jblock in eachindex(Jblock)
                     for k in 1:X.blocksize
                         j = (Jblock[jblock] - 1) * (X.blocksize) + k

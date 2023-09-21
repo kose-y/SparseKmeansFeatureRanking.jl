@@ -1,4 +1,4 @@
-# SKFR.jl
+# SparseKmeansFeatureRanking.jl
 [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://kose-y.github.io/SKFR.jl/dev)
 
 Sparse K-means via Feature Ranking
@@ -14,5 +14,5 @@ This package requires Julia v1.6 or later, which can be obtained from
 The package can be installed by running the following code:
 ```julia
 using Pkg
-pkg"add https://github.com/kose-y/SKFR.jl"
+pkg"add https://github.com/kose-y/SparseKmeansFeatureRanking.jl"
 ```

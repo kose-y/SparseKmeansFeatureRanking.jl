@@ -1,2 +1,3 @@
 *.mem
 .DS_store
+/Manifest.toml

@@ -1,4 +1,4 @@
-module SKFR
+module SparseKmeansFeatureRanking
 
 using Base: stackframe_function_color
 using StatsBase, Distances, DelimitedFiles, Base.Threads

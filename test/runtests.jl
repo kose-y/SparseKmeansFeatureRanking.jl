@@ -1,4 +1,4 @@
-using SKFR
+using SparseKmeansFeatureRanking
 using Test
 using Distances
 using SnpArrays
@@ -38,14 +38,14 @@ include("ref/sparse.jl")
 
     # Random.seed!(16962)
     rng = MersenneTwister(16962)
-    IM = SKFR.get_imputed_matrix(collect(transpose(X)), 3; rng=rng)
+    IM = SparseKmeansFeatureRanking.get_imputed_matrix(collect(transpose(X)), 3; rng=rng)
     X1 = deepcopy(IM)
     X2 = deepcopy(IM)
 
     # test correctness of on-the-fly normalization
-    SKFR.compute_μ_σ!(IM)
+    SparseKmeansFeatureRanking.compute_μ_σ!(IM)
 
-    IM2 = SKFR.get_imputed_matrix(collect(transpose(X)), 3; renormalize=false)
+    IM2 = SparseKmeansFeatureRanking.get_imputed_matrix(collect(transpose(X)), 3; renormalize=false)
     for j = 1:features # normalize each feature
         # Do it on the fly with SnpArray. 
         IM2[:, j] .= zscore(@view(IM2[:, j]))
@@ -70,9 +70,9 @@ include("ref/sparse.jl")
             @test sum / cnts ≈ IM.centers[j, k]
         end
     end
-    # @btime (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1($X1, $sparsity);
-    @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(X1, sparsity);
-    @time (classout2_, center2_, selectedvec2_, WSSval2_, TSSval2_) = SKFR.sparsekmeans2(X2, sparsity);
+    # @btime (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SparseKmeansFeatureRanking.sparsekmeans1($X1, $sparsity);
+    @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SparseKmeansFeatureRanking.sparsekmeans1(X1, sparsity);
+    @time (classout2_, center2_, selectedvec2_, WSSval2_, TSSval2_) = SparseKmeansFeatureRanking.sparsekmeans2(X2, sparsity);
 
     # test sparsekmeans results
     @test all(classout1 .== classout1_)
@@ -95,28 +95,28 @@ end
     EURtrue = convert(Matrix{Float64}, EUR, model=ADDITIVE_MODEL, center=false, scale=false)
     nclusters = 3
     rng = MersenneTwister(263)
-    ISM = SKFR.get_imputed_matrix(EUR, nclusters; rng=rng)
+    ISM = SparseKmeansFeatureRanking.get_imputed_matrix(EUR, nclusters; rng=rng)
     rng = MersenneTwister(263)
-    IM = SKFR.get_imputed_matrix(EURtrue, nclusters; rng=rng)
-    @time (classout1, center1, selectedvec1, WSSval1, TSSval1) = SKFR.sparsekmeans1(IM, 30);
-    # @btime (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1($ISM, 30);
-    @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30);        
+    IM = SparseKmeansFeatureRanking.get_imputed_matrix(EURtrue, nclusters; rng=rng)
+    @time (classout1, center1, selectedvec1, WSSval1, TSSval1) = SparseKmeansFeatureRanking.sparsekmeans1(IM, 30);
+    # @btime (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SparseKmeansFeatureRanking.sparsekmeans1($ISM, 30);
+    @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SparseKmeansFeatureRanking.sparsekmeans1(ISM, 30);        
     @test classout1 == classout1_
     @test all(center1 .≈ center1_)
     @test all(selectedvec1 .== selectedvec1_)
     @test WSSval1 ≈ WSSval1_
     @test TSSval1 ≈ TSSval1_
 
-    ISM = SKFR.get_imputed_matrix(EUR, nclusters; rng=rng)
-    @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30);  
-    @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30);  
-    SKFR.reinitialize!(ISM)
-    @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30; squares=false);  
-    SKFR.reinitialize!(ISM)
-    @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30; squares=false);  
+    ISM = SparseKmeansFeatureRanking.get_imputed_matrix(EUR, nclusters; rng=rng)
+    @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SparseKmeansFeatureRanking.sparsekmeans1(ISM, 30);  
+    @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SparseKmeansFeatureRanking.sparsekmeans1(ISM, 30);  
+    SparseKmeansFeatureRanking.reinitialize!(ISM)
+    @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SparseKmeansFeatureRanking.sparsekmeans1(ISM, 30; squares=false);  
+    SparseKmeansFeatureRanking.reinitialize!(ISM)
+    @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SparseKmeansFeatureRanking.sparsekmeans1(ISM, 30; squares=false);  
     # @btime begin
-    #     ISM = SKFR.ImputedSnpMatrix{Float64}($EUR, $nclusters)
-    #     (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30);  
+    #     ISM = SparseKmeansFeatureRanking.ImputedSnpMatrix{Float64}($EUR, $nclusters)
+    #     (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SparseKmeansFeatureRanking.sparsekmeans1(ISM, 30);  
     # end
 end
 
@@ -125,28 +125,28 @@ end
     EURtrue = convert(Matrix{Float64}, EUR, model=ADDITIVE_MODEL, center=false, scale=false)
     nclusters = 3
     rng = MersenneTwister(263)
-    ISM = SKFR.get_imputed_matrix(EUR, nclusters; blocksize=10, rng=rng)
+    ISM = SparseKmeansFeatureRanking.get_imputed_matrix(EUR, nclusters; blocksize=10, rng=rng)
     rng = MersenneTwister(263)
-    IM = SKFR.get_imputed_matrix(EURtrue, nclusters; blocksize=10, rng=rng)
-    @time (classout1, center1, selectedvec1, WSSval1, TSSval1) = SKFR.sparsekmeans1(IM, 30);
-    # @btime (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1($ISM, 30);
-    @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30);        
+    IM = SparseKmeansFeatureRanking.get_imputed_matrix(EURtrue, nclusters; blocksize=10, rng=rng)
+    @time (classout1, center1, selectedvec1, WSSval1, TSSval1) = SparseKmeansFeatureRanking.sparsekmeans1(IM, 30);
+    # @btime (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SparseKmeansFeatureRanking.sparsekmeans1($ISM, 30);
+    @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SparseKmeansFeatureRanking.sparsekmeans1(ISM, 30);        
     @test classout1 == classout1_
     @test all(center1 .≈ center1_)
     @test all(selectedvec1 .== selectedvec1_)
     @test WSSval1 ≈ WSSval1_
     @test TSSval1 ≈ TSSval1_
 
-    ISM = SKFR.get_imputed_matrix(EUR, nclusters; rng=rng)
-    @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30);  
-    @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30);  
-    SKFR.reinitialize!(ISM)
-    @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30; squares=false);  
-    SKFR.reinitialize!(ISM)
-    @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30; squares=false);  
+    ISM = SparseKmeansFeatureRanking.get_imputed_matrix(EUR, nclusters; rng=rng)
+    @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SparseKmeansFeatureRanking.sparsekmeans1(ISM, 30);  
+    @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SparseKmeansFeatureRanking.sparsekmeans1(ISM, 30);  
+    SparseKmeansFeatureRanking.reinitialize!(ISM)
+    @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SparseKmeansFeatureRanking.sparsekmeans1(ISM, 30; squares=false);  
+    SparseKmeansFeatureRanking.reinitialize!(ISM)
+    @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SparseKmeansFeatureRanking.sparsekmeans1(ISM, 30; squares=false);  
     # @btime begin
-    #     ISM = SKFR.ImputedSnpMatrix{Float64}($EUR, $nclusters)
-    #     (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30);  
+    #     ISM = SparseKmeansFeatureRanking.ImputedSnpMatrix{Float64}($EUR, $nclusters)
+    #     (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SparseKmeansFeatureRanking.sparsekmeans1(ISM, 30);  
     # end
 end
 
@@ -159,25 +159,25 @@ end
 #     EUR_stacked = StackedSnpArray([EURfirsthalf, EURsecondhalf])
 #     nclusters = 3
 #     rng = MersenneTwister(263)
-#     ISM = SKFR.get_imputed_matrix(EUR_stacked, nclusters; rng=rng)
+#     ISM = SparseKmeansFeatureRanking.get_imputed_matrix(EUR_stacked, nclusters; rng=rng)
 #     rng = MersenneTwister(263)
-#     IM = SKFR.get_imputed_matrix(EURtrue, nclusters; rng=rng)
-#     @time (classout1, center1, selectedvec1, WSSval1, TSSval1) = SKFR.sparsekmeans1(IM, 30);
-#     # @btime (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1($ISM, 30);
-#     @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30);        
+#     IM = SparseKmeansFeatureRanking.get_imputed_matrix(EURtrue, nclusters; rng=rng)
+#     @time (classout1, center1, selectedvec1, WSSval1, TSSval1) = SparseKmeansFeatureRanking.sparsekmeans1(IM, 30);
+#     # @btime (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SparseKmeansFeatureRanking.sparsekmeans1($ISM, 30);
+#     @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SparseKmeansFeatureRanking.sparsekmeans1(ISM, 30);        
 #     @test classout1 == classout1_
 #     @test all(center1 .≈ center1_)
 #     @test all(selectedvec1 .== selectedvec1_)
 #     @test WSSval1 ≈ WSSval1_
 #     @test TSSval1 ≈ TSSval1_
 
-#     ISM = SKFR.ImputedSnpMatrix{Float64}(EUR, nclusters; rng=rng)
-#     @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30);  
-#     @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30);  
-#     SKFR.reinitialize!(ISM)
-#     @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30; squares=false);  
-#     SKFR.reinitialize!(ISM)
-#     @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30; squares=false);     
+#     ISM = SparseKmeansFeatureRanking.ImputedSnpMatrix{Float64}(EUR, nclusters; rng=rng)
+#     @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SparseKmeansFeatureRanking.sparsekmeans1(ISM, 30);  
+#     @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SparseKmeansFeatureRanking.sparsekmeans1(ISM, 30);  
+#     SparseKmeansFeatureRanking.reinitialize!(ISM)
+#     @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SparseKmeansFeatureRanking.sparsekmeans1(ISM, 30; squares=false);  
+#     SparseKmeansFeatureRanking.reinitialize!(ISM)
+#     @time (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SparseKmeansFeatureRanking.sparsekmeans1(ISM, 30; squares=false);     
     
 #     rm("EUR_subset_1.bed")
 #     rm("EUR_subset_1.fam")
@@ -194,11 +194,11 @@ end
 # @testset "alloc" begin
 #     EUR = SnpArray(SnpArrays.datadir("EUR_subset.bed")) # No missing
 #     nclusters = 3
-#     ISM = SKFR.ImputedSnpMatrix{Float64}(EUR, nclusters)
-#     # @btime (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1($ISM, 30);
-#     (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30);        
+#     ISM = SparseKmeansFeatureRanking.ImputedSnpMatrix{Float64}(EUR, nclusters)
+#     # @btime (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SparseKmeansFeatureRanking.sparsekmeans1($ISM, 30);
+#     (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SparseKmeansFeatureRanking.sparsekmeans1(ISM, 30);        
 #     Profile.clear_malloc_data()
-#     ISM = SKFR.ImputedSnpMatrix{Float64}(EUR, nclusters)
-#     (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SKFR.sparsekmeans1(ISM, 30);  
+#     ISM = SparseKmeansFeatureRanking.ImputedSnpMatrix{Float64}(EUR, nclusters)
+#     (classout1_, center1_, selectedvec1_, WSSval1_, TSSval1_) = SparseKmeansFeatureRanking.sparsekmeans1(ISM, 30);  
 
 # end

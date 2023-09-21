@@ -1,4 +1,4 @@
-# SKFR.jl
+# SparseKmeansFeatureRanking.jl
 
 Sparse K-means via Feature Ranking
 
@@ -13,7 +13,7 @@ This package requires Julia v1.6 or later, which can be obtained from
 The package can be installed by running the following code:
 ```julia
 using Pkg
-pkg"add https://github.com/kose-y/SKFR.jl"
+pkg"add https://github.com/kose-y/SparseKmeansFeatureRanking.jl"
 ```
 For running the examples below, the following are also necessary. 
 ```julia
@@ -43,7 +43,7 @@ First, let us initialize the random number generator for reproducibility. We use
 
 
 ```julia
-using Random, SKFR
+using Random, SparseKmeansFeatureRanking
 rng = MersenneTwister(7542)
 ```
 
@@ -71,14 +71,14 @@ X[1:m, s + 1:end] = X[1:m, s + 1:end] .+ 2.0;
 
 
 ```julia
-IM = SKFR.get_imputed_matrix(collect(transpose(X)), 3; rng=rng);
+IM = SparseKmeansFeatureRanking.get_imputed_matrix(collect(transpose(X)), 3; rng=rng);
 ```
 
 The function `sparsekmeans1()` selects `sparsity` most informative features globally. 
 
 
 ```julia
-(classout1, center1, selectedvec1, WSSval1, TSSval1) = SKFR.sparsekmeans1(IM, sparsity);
+(classout1, center1, selectedvec1, WSSval1, TSSval1) = SparseKmeansFeatureRanking.sparsekmeans1(IM, sparsity);
 ```
 
 `classout1` is the class labels, `center1` contains cluster centers, `selectedvec1` contains selected informative features. `WSSval1` shows within-cluster sum of squares value, and `TSSval1` contains total sum of squares. 
@@ -102,8 +102,8 @@ The function `sparsekmeans2()` selects `sparsity` most informative feature for *
 
 
 ```julia
-IM = SKFR.get_imputed_matrix(collect(transpose(X)), 3; rng=rng)
-(classout2, center2, selectedvec2, WSSval2, TSSval2) = SKFR.sparsekmeans2(IM, sparsity);
+IM = SparseKmeansFeatureRanking.get_imputed_matrix(collect(transpose(X)), 3; rng=rng)
+(classout2, center2, selectedvec2, WSSval2, TSSval2) = SparseKmeansFeatureRanking.sparsekmeans2(IM, sparsity);
 ```
 
 
@@ -134,12 +134,12 @@ Then, we run the SKFR functions just as above. For each iteration, missing value
 
 
 ```julia
-IM = SKFR.get_imputed_matrix(collect(transpose(X_missing)), 3; rng=rng);
+IM = SparseKmeansFeatureRanking.get_imputed_matrix(collect(transpose(X_missing)), 3; rng=rng);
 ```
 
 
 ```julia
-(classout1, center1, selectedvec1, WSSval1, TSSval1) = SKFR.sparsekmeans1(IM, sparsity);
+(classout1, center1, selectedvec1, WSSval1, TSSval1) = SparseKmeansFeatureRanking.sparsekmeans1(IM, sparsity);
 ```
 
 If we check the rand index, we see that the clustering result is a little bit noisy, as one may expect.
@@ -169,6 +169,6 @@ nclusters = 3;
 
 
 ```julia
-IM = SKFR.get_imputed_matrix(X, nclusters; rng=rng)
-(classout, center, selectedvec, WSSval, TSSval) = SKFR.sparsekmeans1(IM, 1000);
+IM = SparseKmeansFeatureRanking.get_imputed_matrix(X, nclusters; rng=rng)
+(classout, center, selectedvec, WSSval, TSSval) = SparseKmeansFeatureRanking.sparsekmeans1(IM, 1000);
 ```

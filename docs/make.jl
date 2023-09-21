@@ -1,14 +1,14 @@
-using SKFR
+using SparseKmeansFeatureRanking
 using Documenter
 
 makedocs(;
-    modules=[SKFR],
+    modules=[SparseKmeansFeatureRanking],
     authors="Seyoon Ko <kos@ucla.edu> and contributors",
     repo="https://github.com/kose-y/SKFR.jl/blob/{commit}{path}#L{line}",
-    sitename="SKFR.jl",
+    sitename="SparseKmeansFeatureRanking.jl",
     format=Documenter.HTML(;
         prettyurls=get(ENV, "CI", "false") == "true",
-        canonical="https://kose-y.github.io/SKFR.jl",
+        canonical="https://kose-y.github.io/SparseKmeansFeatureRanking.jl",
         assets=String[],
     ),
     pages=[
@@ -17,6 +17,6 @@ makedocs(;
 )
 
 deploydocs(;
-    repo="github.com/kose-y/SKFR.jl",
+    repo="github.com/kose-y/SparseKmeansFeatureRanking.jl",
     devbranch = "master"
 )

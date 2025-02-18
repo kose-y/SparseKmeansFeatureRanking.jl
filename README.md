@@ -1,5 +1,5 @@
 # SparseKmeansFeatureRanking.jl
-[![](https://img.shields.io/badge/docs-dev-blue.svg)](https://kose-y.github.io/SKFR.jl/dev)
+[![](https://img.shields.io/badge/docs-dev-blue.svg)](https://kose-y.github.io/SparseKmeansFeatureRanking.jl/dev)
 
 Sparse K-means via Feature Ranking
 

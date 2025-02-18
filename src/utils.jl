@@ -122,7 +122,7 @@ function get_distances_to_center!(X::ImputedSnpMatrix{T}, selectedvec::AbstractV
         jj = t
         while jj <= length(selectedvec)
             j = selectedvec[jj]
-            @turbo for kk in 1:k, i in 1:n
+            @inbounds for kk in 1:k, i in 1:n
                 ip3 = i + 3
                 v = ((X.data.data)[ip3 >> 2, j] >> ((ip3 & 0x03) << 1)) & 0x03
                 nanv = (v == 0x01)
@@ -248,7 +248,7 @@ function get_centers!(X::ImputedSnpMatrix{T}) where T <: Real
     @assert size(X.centers, 1) == p
     fill!(X.centers_tmp, zero(T))
     fill!(X.members, zero(eltype(X.members)))
-    @tturbo for j in 1:size(X.centers_tmp, 1), i in 1:length(X.clusters)
+    @inbounds for j in 1:size(X.centers_tmp, 1), i in 1:length(X.clusters)
         ip3 = i + 3
         v = ((X.data.data)[ip3 >> 2, j] >> ((ip3 & 0x03) << 1)) & 0x03
         nanv = (v == 0x01)
@@ -281,7 +281,7 @@ function get_centers!(X::ImputedStackedSnpMatrix{T}) where T <: Real
     fill!(X.members, zero(eltype(X.members)))
     for jjj in 1:length(X.data.arrays)
         offsets = X.data.offsets
-        @tturbo for j in (offsets[jjj] + 1):(offsets[jjj + 1]), i in 1:length(X.clusters)
+        @turbo for j in (offsets[jjj] + 1):(offsets[jjj + 1]), i in 1:length(X.clusters)
             ip3 = i + 3
             v = ((X.data.arrays[jjj].data)[ip3 >> 2, j - offsets[jjj]] >> ((ip3 & 0x03) << 1)) & 0x03
             nanv = (v == 0x01)
@@ -327,7 +327,7 @@ function get_freq!(freq::AbstractMatrix{T}, denom::AbstractMatrix{T}, s::SnpArra
     clusters::Vector{Int}) where T
     n, p = size(s)
     fill!(freq, zero(T))
-    @tturbo for j in 1:p, i in 1:n
+    @turbo for j in 1:p, i in 1:n
         ip3 = i + 3
         v = ((s.data)[ip3 >> 2, j] >> ((ip3 & 0x03) << 1)) & 0x03
         nanv = (v == 0x01)
@@ -391,7 +391,7 @@ end
 function dists_from_single_row!(dists::Matrix{T}, X::ImputedSnpMatrix{T}, s::Int) where T
     n, p = size(X)
     fill!(dists, zero(T))
-    @tturbo for j in 1:p
+    @turbo for j in 1:p
         sp3 = s + 3
         vr = ((X.data.data)[sp3 >> 2, j] >> ((sp3 & 0x03) << 1)) & 0x03
         nanvr = (vr == 0x01)
@@ -451,7 +451,7 @@ function dists_from_rows!(dists::Array{T, 3}, X::ImputedSnpMatrix{T}, iseeds::Ve
     @assert size(dists, 1) == n
     fill!(dists, zero(T))
     X_subsample = X[iseeds, :]
-    @tturbo for j in 1:p
+    @inbounds for j in 1:p
         for i in 1:n
             ip3 = i + 3
             v = ((X.data.data)[ip3 >> 2, j] >> ((ip3 & 0x03) << 1)) & 0x03
